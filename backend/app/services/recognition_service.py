@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-
+from app.services.visit_service import VisitService
 import numpy as np
 import faiss
 
@@ -81,7 +81,7 @@ class RecognitionService:
     def recognize_embedding(
         self,
         embedding: np.ndarray,
-        threshold: float = 0.2741
+        threshold: float = 0.35
     ):
 
         if self.index is None:
@@ -98,6 +98,9 @@ class RecognitionService:
             k=1
         )
 
+        print("distance =", float(D[0][0]))
+        print("idx =", int(I[0][0]))
+
         score = float(
             D[0][0]
         )
@@ -107,6 +110,21 @@ class RecognitionService:
         )
 
         if score < threshold:
+
+            db = SessionLocal()
+
+            try:
+
+                LogService.create_log(
+                    db=db,
+                    customer_id=None,
+                    score=score,
+                    recognized=False
+                )
+
+            finally:
+
+                db.close()
 
             return {
                 "recognized": False,
@@ -122,7 +140,13 @@ class RecognitionService:
             LogService.create_log(
                 db=db,
                 customer_id=self.customer_ids[idx],
-                score=score
+                score=score,
+                recognized=True
+            )
+
+            VisitService.create_visit(
+                db=db,
+                customer_id=self.customer_ids[idx]
             )
 
         finally:

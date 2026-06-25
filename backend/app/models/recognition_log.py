@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     String,
     DateTime,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -47,6 +48,14 @@ class RecognitionLog(Base):
         Boolean
     )
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True)
+    recognized: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False
     )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
