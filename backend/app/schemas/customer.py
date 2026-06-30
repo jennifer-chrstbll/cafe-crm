@@ -36,6 +36,7 @@ class CustomerDetailResponse(BaseModel):
     email: str | None = None
     gender: str | None = None
     visit_count: int
+    segment: str | None = None
 
     model_config = {
         "from_attributes": True
