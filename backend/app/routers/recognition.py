@@ -165,12 +165,18 @@ async def enroll_customer(request: Request):
     db = SessionLocal()
     try:
         # Create customer record
+        # NOTE: consent saat ini di-set otomatis True begitu form enrollment
+        # disubmit (belum ada UI checkbox consent terpisah). Kalau nanti mau
+        # ada langkah persetujuan eksplisit dari pelanggan, cukup baca field
+        # "consent" dari form di sini dan validasi sebelum set True.
         customer = Customer(
             name=name,
             phone_number=phone_number,
             email=email,
             gender=gender,
             is_active=True,
+            consent_given=True,
+            consent_given_at=datetime.now(timezone.utc),
         )
         db.add(customer)
         db.commit()

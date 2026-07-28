@@ -7,6 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ShoppingCart, Search, Trash2, Plus, Minus, CheckCircle2, X } from "lucide-react";
 import api from "@/services/api";
 import { Menu, Customer, CartItem } from "@/types";
@@ -25,6 +32,14 @@ const SEGMENT_COLORS: Record<string, string> = {
   New: "bg-green-100 text-green-800 border-green-300",
 };
 
+const PAYMENT_METHODS = [
+  { value: "cash", label: "💵 Cash" },
+  { value: "qris", label: "📱 QRIS" },
+  { value: "debit_card", label: "💳 Kartu Debit" },
+  { value: "credit_card", label: "💳 Kartu Kredit" },
+  { value: "e_wallet", label: "👛 E-Wallet" },
+];
+
 function POSContent() {
   const searchParams = useSearchParams();
   const preselectedCustomerId = searchParams.get("customerId");
@@ -40,6 +55,7 @@ function POSContent() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [success, setSuccess] = useState<any>(null);
   const [activeCategory, setActiveCategory] = useState("COFFEE");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
 
   useEffect(() => {
     async function fetchData() {
@@ -114,9 +130,11 @@ function POSContent() {
     if (!selectedCustomer || cart.length === 0) return;
     setCheckoutLoading(true);
     try {
-      const res = await api.post("/pos/checkout", {
+      const res = await api.post("/pos/order", {
         customer_id: selectedCustomer.customer_id,
         items: cart.map(c => ({ menu_id: c.menu.menu_id, qty: c.qty })),
+        pay_now: true,
+        payment_method: paymentMethod,
       });
       setSuccess(res.data);
       setCart([]);
@@ -336,6 +354,18 @@ function POSContent() {
                       Rp {total.toLocaleString("id-ID")}
                     </span>
                   </div>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Metode pembayaran" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map(pm => (
+                        <SelectItem key={pm.value} value={pm.value}>
+                          {pm.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     className="w-full bg-primary hover:bg-primary/90"
                     disabled={!selectedCustomer || cart.length === 0 || checkoutLoading}

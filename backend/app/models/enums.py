@@ -11,3 +11,11 @@ class MenuCategory(str, Enum):
     NON_COFFEE = "NON_COFFEE"
     FOOD = "FOOD"
     DESSERT = "DESSERT"
+
+
+class PaymentMethod(str, Enum):
+    CASH = "cash"
+    QRIS = "qris"
+    DEBIT_CARD = "debit_card"
+    CREDIT_CARD = "credit_card"
+    E_WALLET = "e_wallet"
