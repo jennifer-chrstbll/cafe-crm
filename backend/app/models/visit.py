@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Integer, DateTime
+from sqlalchemy import ForeignKey, Integer, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,10 @@ class Visit(Base):
 
     customer_id: Mapped[UUID] = mapped_column(
         ForeignKey("customers.customer_id", ondelete="CASCADE")
+    )
+
+    track_id_aktif: Mapped[str | None] = mapped_column(
+        String(50)
     )
 
     entry_time: Mapped[datetime] = mapped_column(

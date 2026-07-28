@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Text, Date
+from sqlalchemy import String, Text, Date, DateTime
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,3 +33,9 @@ class Customer(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    consent_given: Mapped[bool] = mapped_column(default=False)
+
+    consent_given_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )

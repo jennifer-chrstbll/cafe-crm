@@ -19,7 +19,7 @@ service = RecognitionService()
 service.load_gallery(db)
 
 probe = np.load(
-    r"D:\Projects\cafe_facerec\embeddings\magface\Jennifer.npy"
+    r"D:\Projects\cafe_facerec\embeddings\arcface\Jennifer.npy"
 )
 
 result = service.recognize_embedding(

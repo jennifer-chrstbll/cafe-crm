@@ -28,6 +28,10 @@ class Order(Base):
         ForeignKey("visits.visit_id", ondelete="CASCADE")
     )
 
+    transaction_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("transactions.transaction_id", ondelete="SET NULL")
+    )
+
     menu_id: Mapped[UUID] = mapped_column(
         ForeignKey("menu.menu_id")
     )

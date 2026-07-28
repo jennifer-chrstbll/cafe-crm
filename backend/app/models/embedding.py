@@ -25,9 +25,16 @@ class Embedding(Base):
         default=uuid4
     )
 
-    customer_id: Mapped[UUID] = mapped_column(
+    customer_id: Mapped[UUID | None] = mapped_column(
         ForeignKey(
             "customers.customer_id",
+            ondelete="CASCADE"
+        )
+    )
+
+    user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "users.user_id",
             ondelete="CASCADE"
         )
     )

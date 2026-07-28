@@ -202,7 +202,7 @@ async def enroll_customer(request: Request):
                         emb = Embedding(
                             customer_id=customer.customer_id,
                             embedding_vector=embedding_vector,
-                            model_name="magface",
+                            model_name="arcface",
                             is_primary=True,
                             created_at=datetime.now(timezone.utc),
                         )

@@ -2,7 +2,7 @@ import requests
 import numpy as np
 
 arr = np.load(
-    r"D:\Projects\cafe_facerec\embeddings\magface\Jennifer.npy"
+    r"D:\Projects\cafe_facerec\embeddings\arcface\Jennifer.npy"
 )
 
 embedding = arr[0].tolist()

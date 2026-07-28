@@ -9,7 +9,7 @@ class LogService:
         customer_id,
         score,
         recognized,
-        model_name="magface",
+        model_name="arcface",
         camera_id="camera_1"
     ):
 

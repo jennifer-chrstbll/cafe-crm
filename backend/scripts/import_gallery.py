@@ -13,7 +13,7 @@ from app.models.customer import Customer
 from app.models.embedding import Embedding
 
 EMBEDDING_DIR = Path(
-    r"D:\Projects\cafe_facerec\embeddings\magface"
+    r"D:\Projects\cafe_facerec\embeddings\arcface"
 )
 
 db = SessionLocal()
@@ -53,7 +53,7 @@ for file in files:
         row = Embedding(
             customer_id=customer.customer_id,
             embedding_vector=emb.tolist(),
-            model_name="magface",
+            model_name="arcface",
             is_primary=False
         )
 

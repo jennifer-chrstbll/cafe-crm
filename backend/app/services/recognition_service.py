@@ -29,7 +29,7 @@ class RecognitionService:
                 Embedding.customer_id == Customer.customer_id
             )
             .filter(
-                Embedding.model_name == "magface"
+                Embedding.model_name == "arcface"
             )
             .all()
         )

@@ -54,7 +54,7 @@ print("Gallery size:", index.ntotal)
 # ====================================
 
 probe = np.load(
-    r"D:\Projects\cafe_facerec\embeddings\magface\Jennifer.npy"
+    r"D:\Projects\cafe_facerec\embeddings\arcface\Jennifer.npy"
 )
 
 probe_embedding = probe[0].astype(np.float32)
