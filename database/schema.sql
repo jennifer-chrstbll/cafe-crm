@@ -180,6 +180,8 @@ CREATE TABLE recognition_logs (
 
     camera_id VARCHAR(50),
 
+    recognized BOOLEAN NOT NULL DEFAULT FALSE,
+
     is_correct BOOLEAN,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
