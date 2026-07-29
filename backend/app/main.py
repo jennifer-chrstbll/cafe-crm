@@ -27,10 +27,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load FAISS gallery saat startup
+# Load FAISS gallery at startup (safe — won't crash if gallery is empty)
 db = SessionLocal()
-recognition_service.load_gallery(db)
-db.close()
+try:
+    n = recognition_service.load_gallery(db)
+    print(f"[STARTUP] FAISS gallery loaded — {n} embedding(s).")
+except Exception as e:
+    print(f"[STARTUP] Warning: could not load gallery: {e}")
+    print(f"[STARTUP] Recognition will return 'unknown' until customers are enrolled.")
+finally:
+    db.close()
 
 # Routers
 app.include_router(auth_router)
