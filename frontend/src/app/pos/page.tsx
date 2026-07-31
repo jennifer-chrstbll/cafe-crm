@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { ShoppingCart, Search, Trash2, Plus, Minus, CheckCircle2, X } from "lucide-react";
 import api from "@/services/api";
+import { recommendationService, RecommendationResponse } from "@/services/recommendationService";
+import { workflowService } from "@/services/workflowService";
 import { Menu, Customer, CartItem } from "@/types";
 
 const CATEGORY_ORDER = ["COFFEE", "NON_COFFEE", "FOOD", "DESSERT"];
@@ -50,12 +52,14 @@ function POSContent() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerDetail, setCustomerDetail] = useState<any>(null);
+  const [recommendationsData, setRecommendationsData] = useState<RecommendationResponse | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [success, setSuccess] = useState<any>(null);
   const [activeCategory, setActiveCategory] = useState("COFFEE");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState("qris");
+  const [orderType, setOrderType] = useState<"pay_now" | "pay_later">("pay_now");
 
   useEffect(() => {
     async function fetchData() {
@@ -88,6 +92,12 @@ function POSContent() {
       api.get(`/customers/${selectedCustomer.customer_id}`).then(res => {
         setCustomerDetail(res.data);
       }).catch(() => setCustomerDetail(null));
+
+      recommendationService.getPersonalizedRecommendations(selectedCustomer.customer_id)
+        .then(res => setRecommendationsData(res))
+        .catch(() => setRecommendationsData(null));
+    } else {
+      setRecommendationsData(null);
     }
   }, [selectedCustomer]);
 
@@ -130,13 +140,18 @@ function POSContent() {
     if (!selectedCustomer || cart.length === 0) return;
     setCheckoutLoading(true);
     try {
-      const res = await api.post("/pos/order", {
+      const res = await workflowService.createOrder({
         customer_id: selectedCustomer.customer_id,
-        items: cart.map(c => ({ menu_id: c.menu.menu_id, qty: c.qty })),
-        pay_now: true,
-        payment_method: paymentMethod,
+        items: cart.map(c => ({ menu_id: c.menu.menu_id, quantity: c.qty })),
+        order_type: orderType,
+        payment_method: (paymentMethod.toUpperCase() as any) || "QRIS",
       });
-      setSuccess(res.data);
+      setSuccess({
+        ...res,
+        customer_name: selectedCustomer.name,
+        total: res.total_amount,
+        items: cart.map(c => ({ menu_name: c.menu.name, qty: c.qty, subtotal: c.menu.price * c.qty }))
+      });
       setCart([]);
     } catch (e: any) {
       alert(e.response?.data?.detail || "Checkout failed");
@@ -256,6 +271,41 @@ function POSContent() {
               </CardContent>
             </Card>
 
+            {/* Top-3 Personalized Recommendations Card */}
+            {selectedCustomer && recommendationsData && recommendationsData.recommendations.length > 0 && (
+              <Card className="border-amber-500/30 bg-amber-500/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between text-amber-500">
+                    <span>✨ Top-3 Rekomendasi Menu ({recommendationsData.strategy === 'COLLABORATIVE_FILTERING' ? 'Personal' : 'Populer'})</span>
+                    <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-500">
+                      {recommendationsData.strategy === 'COLLABORATIVE_FILTERING' ? 'Collaborative Filtering' : 'Cold-Start'}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0">
+                  {recommendationsData.recommendations.map(rec => {
+                    const matchedMenu = menus.find(m => m.menu_id === rec.menu_id);
+                    return (
+                      <button
+                        key={rec.menu_id}
+                        onClick={() => matchedMenu && addToCart(matchedMenu)}
+                        className="p-3 rounded-lg border border-amber-500/20 bg-card hover:bg-amber-500/10 transition-all text-left flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="font-semibold text-sm text-foreground">{rec.name}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-1">{rec.reason}</div>
+                        </div>
+                        <div className="mt-2 text-xs font-bold text-amber-500 flex justify-between items-center">
+                          <span>Rp {Number(rec.price).toLocaleString("id-ID")}</span>
+                          <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.5 rounded text-amber-400">+ Tambah</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Category tabs */}
             <div className="flex gap-2 flex-wrap">
               {CATEGORY_ORDER.filter(c => grouped[c]).map(cat => (
@@ -354,6 +404,28 @@ function POSContent() {
                       Rp {total.toLocaleString("id-ID")}
                     </span>
                   </div>
+                  {/* Order Type Toggle: Pay Now vs Pay Later */}
+                  <div className="flex rounded-lg bg-muted p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setOrderType("pay_now")}
+                      className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                        orderType === "pay_now" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      ⚡ Pay Now (Langsung Lunas)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderType("pay_later")}
+                      className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                        orderType === "pay_later" ? "bg-card text-amber-500 font-bold shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      🛋️ Pay Later (Stay-in)
+                    </button>
+                  </div>
+
                   <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                     <SelectTrigger>
                       <SelectValue placeholder="Metode pembayaran" />

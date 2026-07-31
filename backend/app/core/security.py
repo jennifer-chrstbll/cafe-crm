@@ -8,7 +8,19 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "cafe-crm-super-secret-key-2026")
+import logging
+
+logger = logging.getLogger(__name__)
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = "cafe-crm-super-secret-key-2026-development-only"
+    logger.warning(
+        "[SECURITY WARNING] JWT_SECRET_KEY environment variable is not set! "
+        "Using temporary development fallback key. "
+        "PLEASE SET A SECURE JWT_SECRET_KEY IN PRODUCTION (.env)!"
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8 hours
 

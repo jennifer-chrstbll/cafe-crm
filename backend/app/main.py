@@ -12,6 +12,9 @@ from app.routers.recognition_logs import router as recognition_logs_router
 from app.routers.users import router as users_router
 from app.routers.menu import router as menu_router
 from app.routers.pos import router as pos_router
+from app.routers.association import router as association_router
+from app.routers.workflow import router as workflow_router
+from app.routers.recommendation import router as recommendation_router
 
 from app.services.recognition_service import recognition_service
 
@@ -48,5 +51,8 @@ app.include_router(recognition_logs_router)
 app.include_router(users_router)
 app.include_router(menu_router)
 app.include_router(pos_router)
+app.include_router(association_router)
+app.include_router(workflow_router)
+app.include_router(recommendation_router)
 
 print("LOADED ROUTERS")
