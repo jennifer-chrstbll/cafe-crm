@@ -61,6 +61,17 @@ function POSContent() {
   const [paymentMethod, setPaymentMethod] = useState("qris");
   const [orderType, setOrderType] = useState<"pay_now" | "pay_later">("pay_now");
 
+  const [unpaidOrders, setUnpaidOrders] = useState<any[]>([]);
+
+  const fetchUnpaidOrders = async () => {
+    try {
+      const res = await api.get("/workflow/unpaid");
+      setUnpaidOrders(res.data);
+    } catch (e) {
+      setUnpaidOrders([]);
+    }
+  };
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -78,6 +89,8 @@ function POSContent() {
           const found = loadedCustomers.find((c: Customer) => c.customer_id === preselectedCustomerId);
           if (found) setSelectedCustomer(found);
         }
+
+        fetchUnpaidOrders();
       } catch (e) {
         console.error(e);
       } finally {
@@ -86,6 +99,26 @@ function POSContent() {
     }
     fetchData();
   }, [preselectedCustomerId]);
+
+  const handleCheckoutUnpaid = async (unpaidItem: any) => {
+    setCheckoutLoading(true);
+    try {
+      const res = await workflowService.checkoutUnpaidOrder({
+        customer_id: unpaidItem.customer_id,
+        payment_method: (paymentMethod.toUpperCase() as any) || "QRIS",
+      });
+      setSuccess({
+        customer_name: unpaidItem.customer_name,
+        total: res.total_amount || unpaidItem.total_amount,
+        items: unpaidItem.items,
+      });
+      fetchUnpaidOrders();
+    } catch (e: any) {
+      alert(e.response?.data?.detail || "Pelunasan gagal");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedCustomer) {
@@ -270,6 +303,43 @@ function POSContent() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Tagihan Stay-in Belum Dibayar List */}
+            {unpaidOrders.length > 0 && (
+              <Card className="border-amber-500/40 bg-amber-500/10">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-bold text-amber-600 flex items-center gap-2">
+                    🛋️ Tagihan Stay-in Belum Dibayar ({unpaidOrders.length})
+                  </CardTitle>
+                  <Badge variant="outline" className="border-amber-500 text-amber-600 font-bold text-xs">
+                    UNPAID TABS
+                  </Badge>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {unpaidOrders.map((unpaid, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-card border border-amber-500/30 shadow-sm">
+                      <div>
+                        <div className="font-bold text-sm text-foreground">{unpaid.customer_name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {unpaid.items.map((it: any) => `${it.menu_name} x${it.qty}`).join(", ")}
+                        </div>
+                        <div className="text-xs font-bold text-amber-600 mt-1">
+                          Total: Rp {Number(unpaid.total_amount).toLocaleString("id-ID")}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                        onClick={() => handleCheckoutUnpaid(unpaid)}
+                        disabled={checkoutLoading}
+                      >
+                        💳 Pelunasan
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Top-3 Personalized Recommendations Card */}
             {selectedCustomer && recommendationsData && recommendationsData.recommendations.length > 0 && (

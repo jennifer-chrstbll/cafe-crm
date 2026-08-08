@@ -94,6 +94,13 @@ export interface FavoriteItem {
   total_qty: number;
 }
 
+export interface UnpaidOrderInfo {
+  transaction_id: string;
+  visit_id: string;
+  total_amount: number;
+  items: { menu_name: string; qty: number; subtotal: number }[];
+}
+
 export interface LiveEvent {
   log_id: string;
   recognized: boolean;
@@ -104,6 +111,7 @@ export interface LiveEvent {
   segment: string | null;
   member_since: string | null;
   favorites: FavoriteItem[];
+  unpaid_order?: UnpaidOrderInfo | null;
   created_at: string;
 }
 

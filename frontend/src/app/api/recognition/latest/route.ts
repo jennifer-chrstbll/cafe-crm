@@ -27,6 +27,8 @@ export async function GET(_req: NextRequest) {
     let memberSince: string | null = null;
     let favorites: { menu_name: string; total_qty: number }[] = [];
 
+    let unpaidOrder: any = null;
+
     if (log.recognized && log.customer_id) {
       customerId = log.customer_id;
 
@@ -50,6 +52,45 @@ export async function GET(_req: NextRequest) {
 
       visitCount = count ?? 0;
       segment = getSegment(visitCount);
+
+      // Check if customer has any UNPAID stay-in order
+      const { data: openVisits } = await supabase
+        .from("visits")
+        .select("visit_id")
+        .eq("customer_id", log.customer_id);
+
+      if (openVisits && openVisits.length > 0) {
+        const vIds = openVisits.map((v: any) => v.visit_id);
+        const { data: txs } = await supabase
+          .from("transactions")
+          .select("transaction_id, visit_id, total_amount, created_at")
+          .in("visit_id", vIds)
+          .eq("status", "UNPAID")
+          .limit(1);
+
+        if (txs && txs.length > 0) {
+          const tx = txs[0];
+          const { data: orderItems } = await supabase
+            .from("orders")
+            .select("qty, subtotal, menu(name)")
+            .eq("visit_id", tx.visit_id);
+
+          const items = (orderItems ?? []).map((o: any) => ({
+            menu_name: o.menu?.name ?? "Item",
+            qty: o.qty,
+            subtotal: parseFloat(o.subtotal),
+          }));
+
+          const calcTotal = items.reduce((sum: number, i: any) => sum + i.subtotal, 0);
+
+          unpaidOrder = {
+            transaction_id: tx.transaction_id,
+            visit_id: tx.visit_id,
+            total_amount: calcTotal || parseFloat(tx.total_amount ?? 0),
+            items,
+          };
+        }
+      }
 
       // Top 3 favorite menu items
       const { data: favRows } = await supabase
@@ -84,6 +125,7 @@ export async function GET(_req: NextRequest) {
       segment,
       member_since: memberSince,
       favorites,
+      unpaid_order: unpaidOrder,
       created_at: log.created_at,
     });
   } catch (e) {

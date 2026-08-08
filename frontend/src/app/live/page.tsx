@@ -218,6 +218,34 @@ export default function LiveRecognitionPage() {
                       </div>
                     </div>
 
+                    {/* Tagihan Unpaid Stay-in (Jika ada) */}
+                    {latestEvent.unpaid_order && (
+                      <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-amber-600 flex items-center gap-1.5 text-sm">
+                            🛋️ Tagihan Stay-in Belum Dibayar
+                          </span>
+                          <Badge variant="outline" className="border-amber-500 text-amber-600 font-bold">
+                            Rp {Number(latestEvent.unpaid_order.total_amount).toLocaleString("id-ID")}
+                          </Badge>
+                        </div>
+                        <div className="text-xs space-y-1 bg-amber-500/5 p-2 rounded border border-amber-500/20">
+                          {latestEvent.unpaid_order.items.map((it, i) => (
+                            <div key={i} className="flex justify-between">
+                              <span>{it.menu_name} x{it.qty}</span>
+                              <span className="font-medium">Rp {Number(it.subtotal).toLocaleString("id-ID")}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                          onClick={() => router.push(`/pos?customerId=${latestEvent.customer_id}`)}
+                        >
+                          💳 Pelunasan Tagihan (Rp {Number(latestEvent.unpaid_order.total_amount).toLocaleString("id-ID")})
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="border-t border-border pt-4">
                       <h3 className="text-sm font-bold text-muted-foreground mb-3 flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-accent" /> Menu Favorit & Rekomendasi
