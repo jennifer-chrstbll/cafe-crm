@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UserCheck, UserX, Camera, Loader2, Sparkles, ShoppingCart } from "lucide-react";
 import api from "@/services/api";
+import { supabase } from "@/lib/supabase";
 import { LiveEvent, RecognitionLog } from "@/types";
 import { format } from "date-fns";
 
@@ -30,33 +31,44 @@ export default function LiveRecognitionPage() {
   const [enrollPhone, setEnrollPhone] = useState("");
   const [isEnrolling, setIsEnrolling] = useState(false);
 
-  // Poll for latest recognition every 3 seconds
-  useEffect(() => {
-    const fetchLatest = async () => {
-      try {
-        const res = await api.get("/recognition/latest");
-        setLatestEvent(res.data);
-      } catch (e) {
-        // Ignore 404s if no logs exist yet
-      }
-    };
-    
-    const fetchRecent = async () => {
-      try {
-        const res = await api.get("/recognition-logs?limit=5");
-        setRecentLogs(res.data);
-      } catch (e) {}
-    };
+  const fetchLatest = async () => {
+    try {
+      const res = await api.get("/recognition/latest");
+      setLatestEvent(res.data);
+    } catch (e) {
+      // Ignore 404s if no logs exist yet
+    }
+  };
 
+  const fetchRecent = async () => {
+    try {
+      const res = await api.get("/recognition-logs?limit=5");
+      setRecentLogs(res.data);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    // Initial fetch
     fetchLatest();
     fetchRecent();
 
-    const intervalId = setInterval(() => {
-      fetchLatest();
-      fetchRecent();
-    }, 3000);
+    // ⚡ Supabase Realtime — instant push when camera_agent.py writes new recognition
+    const channel = supabase
+      .channel("recognition_live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "recognition_logs" },
+        (_payload) => {
+          // New recognition event — fetch full context immediately
+          fetchLatest();
+          fetchRecent();
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(intervalId);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Enroll Customer Flow (menggunakan wajah dari CCTV secara otomatis)
@@ -102,9 +114,9 @@ export default function LiveRecognitionPage() {
           {/* LEFT: Kamera feed */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="relative rounded-xl overflow-hidden bg-black aspect-video border-4 border-border shadow-lg flex items-center justify-center">
-              {/* CCTV Stream dari Backend cafe_facerec */}
+              {/* CCTV Stream dari Arduino Uno Q */}
               <img
-                src="http://localhost:5001/video_feed"
+                src="http://192.168.18.80:5001/video_feed"
                 alt="CCTV Stream"
                 className="w-full h-full object-cover"
                 onError={(e) => {
