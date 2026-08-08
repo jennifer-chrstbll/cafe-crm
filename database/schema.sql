@@ -142,6 +142,31 @@ CREATE TABLE orders (
 );
 
 -- =====================================================
+-- TRANSACTIONS
+-- =====================================================
+
+CREATE TABLE transactions (
+    transaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    visit_id UUID NOT NULL,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'UNPAID',
+
+    total_amount NUMERIC(10,2) DEFAULT 0,
+
+    payment_method VARCHAR(50),
+
+    paid_at TIMESTAMPTZ,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT fk_transactions_visit
+        FOREIGN KEY (visit_id)
+        REFERENCES visits(visit_id)
+        ON DELETE CASCADE
+);
+
+-- =====================================================
 -- USERS
 -- =====================================================
 
