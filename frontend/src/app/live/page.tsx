@@ -34,7 +34,16 @@ export default function LiveRecognitionPage() {
   const fetchLatest = async () => {
     try {
       const res = await api.get("/recognition/latest");
-      setLatestEvent(res.data);
+      const newEvent: LiveEvent = res.data;
+      
+      setLatestEvent((prev) => {
+        // If current screen is showing a KNOWN customer (e.g. Jennifer),
+        // don't let an temporary UNKNOWN flicker kick them off the screen!
+        if (prev?.recognized && !newEvent.recognized) {
+          return prev;
+        }
+        return newEvent;
+      });
     } catch (e) {
       // Ignore 404s if no logs exist yet
     }
@@ -163,8 +172,18 @@ export default function LiveRecognitionPage() {
                 latestEvent.recognized ? "bg-success" : "bg-destructive"
               }`} />
               
-              <CardHeader className="pt-6">
+              <CardHeader className="pt-6 flex flex-row items-center justify-between space-y-0">
                 <CardTitle>Customer Terdeteksi</CardTitle>
+                {latestEvent && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setLatestEvent(null)}
+                  >
+                    Clear / Next
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 {!latestEvent ? (
@@ -197,7 +216,7 @@ export default function LiveRecognitionPage() {
                       <h3 className="text-sm font-bold text-muted-foreground mb-3 flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-accent" /> Menu Favorit & Rekomendasi
                       </h3>
-                      {latestEvent.favorites.length > 0 ? (
+                      {latestEvent.favorites && latestEvent.favorites.length > 0 ? (
                         <div className="space-y-2">
                           {latestEvent.favorites.map((fav, i) => (
                             <div key={i} className="flex justify-between items-center p-2 rounded bg-muted/30 border border-border/50">
@@ -216,7 +235,7 @@ export default function LiveRecognitionPage() {
                       <div className="rounded-lg bg-accent/10 border border-accent/20 p-4 relative">
                         <div className="absolute -top-3 -left-2 text-2xl">💬</div>
                         <p className="text-sm italic font-bold text-[#5C3D2E] text-center">
-                          "Halo kak {latestEvent.customer_name}! Mau pesan {latestEvent.favorites[0]?.menu_name || 'yang biasa'} lagi hari ini?"
+                          "Halo kak {latestEvent.customer_name}! Mau pesan {latestEvent.favorites?.[0]?.menu_name || 'yang biasa'} lagi hari ini?"
                         </p>
                       </div>
                       
@@ -236,7 +255,7 @@ export default function LiveRecognitionPage() {
                     </div>
                     <h2 className="text-2xl font-bold text-destructive">UNKNOWN PERSON</h2>
                     <p className="text-sm text-muted-foreground mt-2 mb-8">
-                      Wajah tidak dikenali dalam database.
+                      Wajah belum terdaftar di database.
                     </p>
                     
                     <Button 
