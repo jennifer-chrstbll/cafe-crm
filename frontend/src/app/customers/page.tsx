@@ -97,10 +97,23 @@ export default function CustomersPage() {
                         <div className="text-muted-foreground">{customer.phone_number || "-"}</div>
                       </div>
                     </TableCell>
-                    <TableCell>{customer.visit_count || 0}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold">{customer.visit_count || 0}</span>
+                        {customer.segment && (
+                          <Badge variant="outline" className={
+                            customer.segment === 'VIP' ? "bg-amber-100 text-amber-800 border-amber-300" :
+                            customer.segment === 'Regular' ? "bg-blue-100 text-blue-800 border-blue-300" :
+                            "bg-green-100 text-green-800 border-green-300"
+                          }>
+                            {customer.segment}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {customer.is_active ? (
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/20">Active</Badge>
+                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold">Active</Badge>
                       ) : (
                         <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">Inactive</Badge>
                       )}

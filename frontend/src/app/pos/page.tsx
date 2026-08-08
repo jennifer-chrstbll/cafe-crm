@@ -14,11 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShoppingCart, Search, Trash2, Plus, Minus, CheckCircle2, X } from "lucide-react";
+import { ShoppingCart, Search, Trash2, Plus, Minus, CheckCircle2, X, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import api from "@/services/api";
 import { recommendationService, RecommendationResponse } from "@/services/recommendationService";
 import { workflowService } from "@/services/workflowService";
 import { Menu, Customer, CartItem } from "@/types";
+import { format } from "date-fns";
 
 const CATEGORY_ORDER = ["COFFEE", "NON_COFFEE", "FOOD", "DESSERT"];
 const CATEGORY_LABELS: Record<string, string> = {
@@ -60,8 +61,8 @@ function POSContent() {
   const [activeCategory, setActiveCategory] = useState("COFFEE");
   const [paymentMethod, setPaymentMethod] = useState("qris");
   const [orderType, setOrderType] = useState<"pay_now" | "pay_later">("pay_now");
-
   const [unpaidOrders, setUnpaidOrders] = useState<any[]>([]);
+  const [isUnpaidFolded, setIsUnpaidFolded] = useState(true);
 
   const fetchUnpaidOrders = async () => {
     try {
@@ -304,40 +305,67 @@ function POSContent() {
               </CardContent>
             </Card>
 
-            {/* Tagihan Stay-in Belum Dibayar List */}
+            {/* Tagihan Stay-in Belum Dibayar Collapsible / Foldable Card */}
             {unpaidOrders.length > 0 && (
-              <Card className="border-amber-500/40 bg-amber-500/10">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-sm font-bold text-amber-600 flex items-center gap-2">
-                    🛋️ Tagihan Stay-in Belum Dibayar ({unpaidOrders.length})
-                  </CardTitle>
-                  <Badge variant="outline" className="border-amber-500 text-amber-600 font-bold text-xs">
-                    UNPAID TABS
-                  </Badge>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {unpaidOrders.map((unpaid, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-card border border-amber-500/30 shadow-sm">
-                      <div>
-                        <div className="font-bold text-sm text-foreground">{unpaid.customer_name}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {unpaid.items.map((it: any) => `${it.menu_name} x${it.qty}`).join(", ")}
-                        </div>
-                        <div className="text-xs font-bold text-amber-600 mt-1">
-                          Total: Rp {Number(unpaid.total_amount).toLocaleString("id-ID")}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                        onClick={() => handleCheckoutUnpaid(unpaid)}
-                        disabled={checkoutLoading}
-                      >
-                        💳 Pelunasan
-                      </Button>
+              <Card className="border-2 border-amber-500/30 bg-amber-500/5 shadow-md overflow-hidden transition-all">
+                <CardHeader
+                  className="py-3 px-4 cursor-pointer hover:bg-amber-500/10 flex flex-row items-center justify-between space-y-0 select-none"
+                  onClick={() => setIsUnpaidFolded(!isUnpaidFolded)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🛋️</span>
+                    <div>
+                      <CardTitle className="text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                        Tagihan Stay-in Belum Dibayar
+                        <Badge className="bg-amber-500 text-white hover:bg-amber-600 font-bold px-2 text-xs rounded-full">
+                          {unpaidOrders.length}
+                        </Badge>
+                      </CardTitle>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {unpaidOrders.map(u => u.customer_name).join(", ")}
+                      </p>
                     </div>
-                  ))}
-                </CardContent>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-600 font-bold text-xs">
+                      Rp {unpaidOrders.reduce((sum, u) => sum + Number(u.total_amount || 0), 0).toLocaleString("id-ID")}
+                    </Badge>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600">
+                      {isUnpaidFolded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                {!isUnpaidFolded && (
+                  <CardContent className="pt-2 pb-4 px-4 border-t border-amber-500/20 space-y-2.5 animate-in slide-in-from-top-2 duration-200">
+                    {unpaidOrders.map((unpaid, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-card border border-amber-500/20 shadow-sm hover:border-amber-500/40 transition-colors">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-foreground">{unpaid.customer_name}</span>
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded">
+                              <Clock className="h-3 w-3" /> {format(new Date(unpaid.created_at), "HH:mm")}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground line-clamp-1">
+                            {unpaid.items.map((it: any) => `${it.menu_name} x${it.qty}`).join(", ")}
+                          </div>
+                          <div className="text-xs font-bold text-amber-600">
+                            Total: Rp {Number(unpaid.total_amount).toLocaleString("id-ID")}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-sm"
+                          onClick={() => handleCheckoutUnpaid(unpaid)}
+                          disabled={checkoutLoading}
+                        >
+                          💳 Pelunasan
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                )}
               </Card>
             )}
 
