@@ -61,6 +61,12 @@ export default function LiveRecognitionPage() {
     fetchLatest();
     fetchRecent();
 
+    // Backup polling every 2 seconds to guarantee updates
+    const interval = setInterval(() => {
+      fetchLatest();
+      fetchRecent();
+    }, 2000);
+
     // ⚡ Supabase Realtime — instant push when camera_agent.py writes new recognition
     const channel = supabase
       .channel("recognition_live")
@@ -68,7 +74,6 @@ export default function LiveRecognitionPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "recognition_logs" },
         (_payload) => {
-          // New recognition event — fetch full context immediately
           fetchLatest();
           fetchRecent();
         }
@@ -76,6 +81,7 @@ export default function LiveRecognitionPage() {
       .subscribe();
 
     return () => {
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, []);
