@@ -11,6 +11,7 @@ const nextConfig = {
     }
     return config;
   },
+  turbopack: {},
   experimental: {
     webpackMemoryOptimizations: true,
   },
