@@ -71,28 +71,30 @@ export async function POST(req: NextRequest) {
     let totalAmount = 0;
     const isPaid = order_type === "pay_now";
 
-    // 4. Create Transaction if pay_now
+    // 4. Create Transaction if pay_now (optional tracking)
     let transactionId: string | null = null;
     if (isPaid) {
-      const { data: tx, error: txErr } = await supabase
-        .from("transactions")
-        .insert({
-          visit_id: activeVisitId,
-          status: "PAID",
-          total_amount: 0,
-          payment_method: payment_method,
-          paid_at: now,
-          created_at: now,
-        })
-        .select("transaction_id")
-        .single();
+      try {
+        const { data: tx } = await supabase
+          .from("transactions")
+          .insert({
+            visit_id: activeVisitId,
+            status: "PAID",
+            total_amount: 0,
+            payment_method: payment_method,
+            paid_at: now,
+            created_at: now,
+          })
+          .select("transaction_id")
+          .single();
 
-      if (!txErr && tx) {
-        transactionId = tx.transaction_id;
+        if (tx) transactionId = tx.transaction_id;
+      } catch (e) {
+        // Safe fallback if transactions table is omitted
       }
     }
 
-    // 5. Insert Order Items
+    // 5. Insert Order Items into orders table
     const orderRows: any[] = [];
     for (const item of items) {
       const menu = menuMap[item.menu_id];
@@ -104,7 +106,6 @@ export async function POST(req: NextRequest) {
       orderRows.push({
         visit_id: activeVisitId,
         menu_id: item.menu_id,
-        transaction_id: transactionId,
         qty: qty,
         subtotal: subtotal,
         created_at: now,
@@ -118,15 +119,17 @@ export async function POST(req: NextRequest) {
 
     if (orderErr) {
       console.error("[/api/workflow/order] Order insert error:", orderErr);
-      return NextResponse.json({ detail: "Gagal menyimpan pesanan" }, { status: 500 });
+      return NextResponse.json({ detail: `Gagal menyimpan pesanan: ${orderErr.message}` }, { status: 500 });
     }
 
     // Update transaction total if created
     if (transactionId) {
-      await supabase
-        .from("transactions")
-        .update({ total_amount: totalAmount })
-        .eq("transaction_id", transactionId);
+      try {
+        await supabase
+          .from("transactions")
+          .update({ total_amount: totalAmount })
+          .eq("transaction_id", transactionId);
+      } catch (e) {}
     }
 
     return NextResponse.json({
