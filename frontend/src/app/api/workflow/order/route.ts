@@ -69,33 +69,8 @@ export async function POST(req: NextRequest) {
     for (const m of menus) menuMap[m.menu_id] = m;
 
     let totalAmount = 0;
-    const isPaid = order_type === "pay_now";
-
-    // 4. Create Transaction if pay_now (optional tracking)
-    let transactionId: string | null = null;
-    if (isPaid) {
-      try {
-        const { data: tx } = await supabase
-          .from("transactions")
-          .insert({
-            visit_id: activeVisitId,
-            status: "PAID",
-            total_amount: 0,
-            payment_method: payment_method,
-            paid_at: now,
-            created_at: now,
-          })
-          .select("transaction_id")
-          .single();
-
-        if (tx) transactionId = tx.transaction_id;
-      } catch (e) {
-        // Safe fallback if transactions table is omitted
-      }
-    }
-
-    // 5. Insert Order Items into orders table
     const orderRows: any[] = [];
+
     for (const item of items) {
       const menu = menuMap[item.menu_id];
       if (!menu) continue;
@@ -112,6 +87,31 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const isPaid = order_type === "pay_now";
+
+    // 4. Create Transaction record (PAID for pay_now, UNPAID for pay_later)
+    let transactionId: string | null = null;
+    try {
+      const { data: tx, error: txErr } = await supabase
+        .from("transactions")
+        .insert({
+          visit_id: activeVisitId,
+          status: isPaid ? "PAID" : "UNPAID",
+          total_amount: totalAmount,
+          payment_method: isPaid ? payment_method : null,
+          paid_at: isPaid ? now : null,
+          created_at: now,
+        })
+        .select("transaction_id")
+        .single();
+
+      if (tx) transactionId = tx.transaction_id;
+      if (txErr) console.warn("[/api/workflow/order] Transaction insert notice:", txErr);
+    } catch (e) {
+      console.warn("[/api/workflow/order] Transaction insert exception:", e);
+    }
+
+    // 5. Insert Order Items into orders table
     const { data: insertedOrders, error: orderErr } = await supabase
       .from("orders")
       .insert(orderRows)
