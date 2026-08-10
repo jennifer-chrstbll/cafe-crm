@@ -14,7 +14,6 @@ export async function GET(_req: NextRequest) {
       { count: todayVisits },
       { count: recognizedToday },
       { count: unknownToday },
-      { count: activeOccupancy },
       { count: totalOrders },
     ] = await Promise.all([
       supabase.from("customers").select("customer_id", { count: "exact", head: true }).eq("is_active", true),
@@ -22,9 +21,19 @@ export async function GET(_req: NextRequest) {
       supabase.from("visits").select("visit_id", { count: "exact", head: true }).gte("entry_time", `${today}T00:00:00`),
       supabase.from("recognition_logs").select("log_id", { count: "exact", head: true }).eq("recognized", true).gte("created_at", `${today}T00:00:00`),
       supabase.from("recognition_logs").select("log_id", { count: "exact", head: true }).eq("recognized", false).gte("created_at", `${today}T00:00:00`),
-      supabase.from("visits").select("visit_id", { count: "exact", head: true }).is("exit_time", null),
       supabase.from("orders").select("order_id", { count: "exact", head: true }),
     ]);
+
+    // Real-time occupancy per floor from Raspberry Pi 5 person tracking agent
+    // Falls back to 0 if rpi_main.py is not running yet
+    const { data: occupancyRows } = await supabase
+      .from("occupancy")
+      .select("camera_id, floor, person_count");
+
+    const floor1Count = (occupancyRows ?? []).find((r: any) => r.floor === 1)?.person_count ?? 0;
+    const floor2Count = (occupancyRows ?? []).find((r: any) => r.floor === 2)?.person_count ?? 0;
+    const totalOccupancy = floor1Count + floor2Count;
+
 
     // Today's revenue & total revenue
     const { data: todayOrders } = await supabase
@@ -60,10 +69,6 @@ export async function GET(_req: NextRequest) {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 3);
 
-    // Person tracking floor breakdown simulation based on active visits
-    const totalPeople = Math.max(activeOccupancy ?? 0, 4); // minimum active visitors for live demo
-    const floor1Count = Math.ceil(totalPeople * 0.6);
-    const floor2Count = Math.floor(totalPeople * 0.4);
 
     return NextResponse.json({
       total_customers: totalCustomers ?? 0,
@@ -74,7 +79,7 @@ export async function GET(_req: NextRequest) {
       total_orders: totalOrders ?? 0,
       today_revenue: todayRevenue,
       total_revenue: totalRevenue,
-      active_occupancy: totalPeople,
+      active_occupancy: totalOccupancy,
       floor1_count: floor1Count,
       floor2_count: floor2Count,
       top_sellers: topSellers,
