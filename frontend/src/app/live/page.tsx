@@ -24,6 +24,7 @@ export default function LiveRecognitionPage() {
   const router = useRouter();
   const [latestEvent, setLatestEvent] = useState<LiveEvent | null>(null);
   const [recentLogs, setRecentLogs] = useState<RecognitionLog[]>([]);
+  const [streamUrl, setStreamUrl] = useState("http://192.168.18.80:5001/video_feed");
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   
   // Enroll state
@@ -131,17 +132,28 @@ export default function LiveRecognitionPage() {
             <div className="relative rounded-xl overflow-hidden bg-black aspect-video border-4 border-border shadow-lg flex items-center justify-center">
               {/* CCTV Stream dari Arduino Uno Q */}
               <img
-                src="http://192.168.18.80:5001/video_feed"
+                src={streamUrl}
                 alt="CCTV Stream"
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = ""; // Clear src to prevent broken image icon
-                  (e.target as HTMLImageElement).alt = "CCTV Offline (Pastikan api_server.py berjalan)";
+                  (e.target as HTMLImageElement).alt = "CCTV Offline (Pastikan camera_agent.py berjalan di Arduino)";
                 }}
               />
               <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2">
                 <Camera className="h-3 w-3" /> Camera 1 Active
               </div>
+            </div>
+
+            {/* Configurable Stream URL Bar */}
+            <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-lg border border-border">
+              <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🎥 Stream URL:</span>
+              <Input
+                value={streamUrl}
+                onChange={(e) => setStreamUrl(e.target.value)}
+                className="h-8 text-xs font-mono"
+                placeholder="http://192.168.x.x:5001/video_feed"
+              />
             </div>
 
             {/* Riwayat Live (Kecil di bawah kamera) */}
