@@ -112,6 +112,9 @@ export interface LiveEvent {
   member_since: string | null;
   favorites: FavoriteItem[];
   unpaid_order?: UnpaidOrderInfo | null;
+  snapshot_url?: string | null;
+  has_active_visit?: boolean;
+  photo_temporary?: boolean;
   created_at: string;
 }
 

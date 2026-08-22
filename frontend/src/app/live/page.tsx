@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { UserCheck, UserX, Camera, Loader2, Sparkles, ShoppingCart } from "lucide-react";
+import { UserCheck, UserX, Camera, Loader2, Sparkles, ShoppingCart, ShieldCheck, Lock } from "lucide-react";
+import { CustomerAvatar } from "@/components/ui/customer-avatar";
 import api from "@/services/api";
 import { supabase } from "@/lib/supabase";
 import { LiveEvent, RecognitionLog } from "@/types";
@@ -173,14 +174,17 @@ export default function LiveRecognitionPage() {
               <CardContent className="py-2">
                 <div className="flex gap-4 overflow-x-auto pb-2">
                   {recentLogs.map(log => (
-                    <div key={log.log_id} className="flex flex-col items-center gap-1 min-w-[80px] p-2 rounded-lg bg-muted/40">
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${log.recognized ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
-                        {log.recognized ? "✓" : "?"}
-                      </div>
+                    <div key={log.log_id} className="flex flex-col items-center gap-1.5 min-w-[80px] p-2 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors">
+                      <CustomerAvatar
+                        name={log.customer_name || "Unknown"}
+                        isActiveVisit={log.recognized}
+                        size="sm"
+                        showBadge={false}
+                      />
                       <div className="text-xs font-medium truncate w-full text-center">
-                        {log.customer_name || "Unknown"}
+                        {log.customer_name || "Tidak Dikenal"}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">
+                      <div className="text-[10px] text-muted-foreground font-mono">
                         {format(new Date(log.created_at), "HH:mm:ss")}
                       </div>
                     </div>
@@ -219,13 +223,27 @@ export default function LiveRecognitionPage() {
                     <p>Menunggu pelanggan...</p>
                   </div>
                 ) : latestEvent.recognized ? (
-                  <div className="flex flex-col gap-6 animate-in slide-in-from-right-4 duration-500 flex-1">
-                    {/* Profil */}
+                  <div className="flex flex-col gap-5 animate-in slide-in-from-right-4 duration-500 flex-1">
+                    {/* Profil Customer & PFP Sementara */}
                     <div className="flex flex-col items-center text-center">
-                      <div className="h-24 w-24 rounded-full bg-success/10 flex items-center justify-center mb-4">
-                        <UserCheck className="h-12 w-12 text-success" />
+                      <div className="mb-3">
+                        <CustomerAvatar
+                          name={latestEvent.customer_name || "Pelanggan"}
+                          snapshotUrl={latestEvent.snapshot_url}
+                          isActiveVisit={latestEvent.has_active_visit ?? true}
+                          size="xl"
+                        />
                       </div>
-                      <h2 className="text-3xl font-bold text-primary">{latestEvent.customer_name}</h2>
+                      
+                      <h2 className="text-2xl sm:text-3xl font-extrabold text-primary">
+                        {latestEvent.customer_name}
+                      </h2>
+
+                      {/* Info PFP Sementara */}
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 justify-center">
+                        <Camera className="h-3.5 w-3.5 text-success" />
+                        <span>Foto Sesi Aktif · Otomatis dihapus saat keluar (UU PDP)</span>
+                      </p>
                       
                       <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
                         {latestEvent.segment && (
@@ -236,21 +254,26 @@ export default function LiveRecognitionPage() {
                         <Badge variant="outline" className="bg-primary/5">
                           {latestEvent.visit_count} Kunjungan
                         </Badge>
+                        {latestEvent.similarity_score !== null && (
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 font-mono text-xs">
+                            Kecocokan {(latestEvent.similarity_score * 100).toFixed(1)}%
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
                     {/* Tagihan Unpaid Stay-in (Jika ada) */}
                     {latestEvent.unpaid_order && (
-                      <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-4 space-y-3">
+                      <div className="bg-warning/10 border-2 border-warning/40 rounded-xl p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-amber-600 flex items-center gap-1.5 text-sm">
+                          <span className="font-bold text-warning flex items-center gap-1.5 text-sm">
                             🛋️ Tagihan Stay-in Belum Dibayar
                           </span>
-                          <Badge variant="outline" className="border-amber-500 text-amber-600 font-bold">
+                          <Badge variant="outline" className="border-warning text-warning font-bold">
                             Rp {Number(latestEvent.unpaid_order.total_amount).toLocaleString("id-ID")}
                           </Badge>
                         </div>
-                        <div className="text-xs space-y-1 bg-amber-500/5 p-2 rounded border border-amber-500/20">
+                        <div className="text-xs space-y-1 bg-warning/5 p-2 rounded border border-warning/20">
                           {latestEvent.unpaid_order.items.map((it, i) => (
                             <div key={i} className="flex justify-between">
                               <span>{it.menu_name} x{it.qty}</span>
@@ -259,7 +282,7 @@ export default function LiveRecognitionPage() {
                           ))}
                         </div>
                         <Button
-                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                          className="w-full bg-warning hover:bg-warning/90 text-warning-foreground font-bold"
                           onClick={() => router.push(`/pos?customerId=${latestEvent.customer_id}`)}
                         >
                           💳 Pelunasan Tagihan (Rp {Number(latestEvent.unpaid_order.total_amount).toLocaleString("id-ID")})
@@ -289,18 +312,24 @@ export default function LiveRecognitionPage() {
                     <div className="mt-auto pt-4 flex flex-col gap-3">
                       <div className="rounded-lg bg-accent/10 border border-accent/20 p-4 relative">
                         <div className="absolute -top-3 -left-2 text-2xl">💬</div>
-                        <p className="text-sm italic font-bold text-[#5C3D2E] text-center">
+                        <p className="text-sm italic font-bold text-primary text-center">
                           "Halo kak {latestEvent.customer_name}! Mau pesan {latestEvent.favorites?.[0]?.menu_name || 'yang biasa'} lagi hari ini?"
                         </p>
                       </div>
                       
                       <Button 
                         size="lg" 
-                        className="w-full shadow-md font-bold text-md mt-2 h-14"
+                        className="w-full shadow-md font-bold text-md mt-1 h-13"
                         onClick={() => router.push(`/pos?customerId=${latestEvent.customer_id}`)}
                       >
                         <ShoppingCart className="mr-2 h-5 w-5" /> Lanjut ke POS
                       </Button>
+                    </div>
+
+                    {/* Privacy Compliance Footer */}
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 border border-border text-[11px] text-muted-foreground">
+                      <ShieldCheck className="h-4 w-4 text-success flex-shrink-0" />
+                      <span><strong>Privacy by Design:</strong> Foto snapshot biometrik hanya disimpan di memori selama sesi aktif dan dihapus permanen saat checkout.</span>
                     </div>
                   </div>
                 ) : (
@@ -308,17 +337,17 @@ export default function LiveRecognitionPage() {
                     <div className="h-24 w-24 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
                       <UserX className="h-12 w-12 text-destructive" />
                     </div>
-                    <h2 className="text-2xl font-bold text-destructive">UNKNOWN PERSON</h2>
-                    <p className="text-sm text-muted-foreground mt-2 mb-8">
-                      Wajah belum terdaftar di database.
+                    <h2 className="text-2xl font-bold text-destructive">WAJAH BELUM TERDAFTAR</h2>
+                    <p className="text-sm text-muted-foreground mt-2 mb-6">
+                      Wajah terdeteksi di kamera namun belum memiliki identitas di database.
                     </p>
                     
                     <Button 
                       size="lg" 
-                      className="w-full bg-primary hover:bg-primary/90 shadow-md"
+                      className="w-full bg-primary hover:bg-primary/90 shadow-md font-bold"
                       onClick={() => setIsEnrollModalOpen(true)}
                     >
-                      <Camera className="mr-2 h-5 w-5" /> Daftarkan Customer
+                      <Camera className="mr-2 h-5 w-5" /> Daftarkan Customer Baru
                     </Button>
                   </div>
                 )}

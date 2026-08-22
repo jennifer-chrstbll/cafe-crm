@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Clock, UserCheck } from "lucide-react";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { CustomerAvatar } from "@/components/ui/customer-avatar";
 import api from "@/services/api";
 import { Visit } from "@/types";
 import { format } from "date-fns";
@@ -144,7 +145,17 @@ export default function VisitsPage() {
               ) : (
                 visits.map((visit) => (
                   <TableRow key={visit.visit_id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell className="font-semibold">{visit.customer_name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <CustomerAvatar
+                          name={visit.customer_name}
+                          isActiveVisit={!visit.exit_time}
+                          size="sm"
+                          showBadge={!visit.exit_time}
+                        />
+                        <span className="font-semibold">{visit.customer_name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       {format(new Date(visit.entry_time), "dd MMM yyyy, HH:mm", { locale: id })}
                     </TableCell>

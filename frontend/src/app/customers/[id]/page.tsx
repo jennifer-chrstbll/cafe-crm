@@ -5,11 +5,13 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Phone, Mail, Calendar, ShoppingBag } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Calendar, ShoppingBag, ShieldCheck, Camera } from "lucide-react";
+import { CustomerAvatar } from "@/components/ui/customer-avatar";
 import api from "@/services/api";
 import { Visit, CustomerOrder } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
 
 const SEGMENT_STYLES: Record<string, string> = {
   VIP: "bg-amber-100 text-amber-800 border-amber-300",
@@ -80,46 +82,84 @@ export default function CustomerDetailPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Profile Card */}
-          <Card className="lg:col-span-1">
-            <CardHeader className="flex flex-col items-center pb-4">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary/10 mb-4">
-                <User className="h-12 w-12 text-primary" />
-              </div>
-              <h2 className="text-2xl font-bold text-center">{customer.name}</h2>
-              <div className="flex items-center gap-2 mt-2">
-                {customer.segment && (
-                  <Badge variant="outline" className={SEGMENT_STYLES[customer.segment]}>
-                    {SEGMENT_EMOJI[customer.segment]} {customer.segment}
-                  </Badge>
-                )}
-                <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                  {customer.visit_count} Kunjungan
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4 border-t border-border">
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{customer.phone_number || "Tidak ada nomor HP"}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{customer.email || "Tidak ada email"}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>Gender: {customer.gender || "Tidak diketahui"}</span>
-              </div>
-              {customer.segment && (
-                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-                  <strong>Segmen {customer.segment}:</strong>{" "}
-                  {customer.segment === "VIP" && "Pelanggan setia dengan 15+ kunjungan. Berikan pelayanan terbaik!"}
-                  {customer.segment === "Regular" && "Pelanggan aktif dengan 5–14 kunjungan."}
-                  {customer.segment === "New" && "Pelanggan baru dengan kurang dari 5 kunjungan."}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {(() => {
+            const activeVisit = visits.find((v) => !v.exit_time);
+            const isActiveVisit = Boolean(activeVisit);
+            return (
+              <Card className="lg:col-span-1 shadow-sm">
+                <CardHeader className="flex flex-col items-center pb-4">
+                  <div className="mb-3">
+                    <CustomerAvatar
+                      name={customer.name}
+                      snapshotUrl={isActiveVisit ? `/api/recognition/snapshot/${customer.customer_id}` : null}
+                      isActiveVisit={isActiveVisit}
+                      size="xl"
+                    />
+                  </div>
+                  <h2 className="text-2xl font-bold text-center">{customer.name}</h2>
+                  
+                  {isActiveVisit ? (
+                    <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20 text-xs font-bold">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
+                      </span>
+                      <span>Sedang di Kafe (Sesi Aktif)</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Avatar Inisial · Tidak Sedang Berkunjung
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-3">
+                    {customer.segment && (
+                      <Badge variant="outline" className={SEGMENT_STYLES[customer.segment]}>
+                        {SEGMENT_EMOJI[customer.segment]} {customer.segment}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                      {customer.visit_count} Kunjungan
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-4 border-t border-border">
+                  <div className="flex items-center gap-3 text-sm">
+                    <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{customer.phone_number || "Tidak ada nomor HP"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{customer.email || "Tidak ada email"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>Gender: {customer.gender || "Tidak diketahui"}</span>
+                  </div>
+                  {customer.segment && (
+                    <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                      <strong>Segmen {customer.segment}:</strong>{" "}
+                      {customer.segment === "VIP" && "Pelanggan setia dengan 15+ kunjungan. Berikan pelayanan terbaik!"}
+                      {customer.segment === "Regular" && "Pelanggan aktif dengan 5–14 kunjungan."}
+                      {customer.segment === "New" && "Pelanggan baru dengan kurang dari 5 kunjungan."}
+                    </div>
+                  )}
+
+                  {/* Privacy by Design Notice */}
+                  <div className="rounded-lg bg-primary/5 border border-primary/15 p-3 text-[11px] text-muted-foreground space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold text-primary">
+                      <ShieldCheck className="h-3.5 w-3.5 text-success" />
+                      <span>Perlindungan Data (UU PDP No. 27/2022)</span>
+                    </div>
+                    <p>
+                      Foto wajah biometrik tidak disimpan permanen di profil pelanggan (Prinsip Minimisasi Data).
+                      Foto sementara hanya diakses selama sesi kunjungan aktif di kafe.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Right: Visits + Orders */}
           <div className="lg:col-span-2 flex flex-col gap-4">

@@ -13,6 +13,7 @@ from app.models.transaction import Transaction
 from app.models.menu import Menu
 from app.models.camera_track import CameraTrack
 from app.models.occupancy_log import OccupancyLog
+from app.services.snapshot_service import snapshot_store
 
 
 class VisitWorkflowEngine:
@@ -254,6 +255,9 @@ class VisitWorkflowEngine:
                     recorded_at=now
                 )
                 db.add(occ_log)
+
+                # Privacy by Design: Purge temporary face snapshot from in-memory cache upon exit
+                snapshot_store.clear_snapshot(str(visit.customer_id))
 
                 closed_visits.append({
                     "visit_id": str(visit.visit_id),

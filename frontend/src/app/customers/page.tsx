@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, Eye, Users } from "lucide-react";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { CustomerAvatar } from "@/components/ui/customer-avatar";
 import api from "@/services/api";
 import { Customer } from "@/types";
 import { useRouter } from "next/navigation";
@@ -165,11 +166,12 @@ export default function CustomersPage() {
                 paginated.map((customer) => (
                   <TableRow key={customer.customer_id} className="hover:bg-muted/30 transition-colors">
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {/* Avatar inisial */}
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
-                          {customer.name.charAt(0).toUpperCase()}
-                        </div>
+                      <div className="flex items-center gap-2.5">
+                        <CustomerAvatar
+                          name={customer.name}
+                          size="sm"
+                          showBadge={false}
+                        />
                         <span className="font-semibold">{customer.name}</span>
                       </div>
                     </TableCell>
