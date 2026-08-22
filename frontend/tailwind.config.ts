@@ -48,6 +48,10 @@ const config = {
   				DEFAULT: '#4CAF50',
   				foreground: 'hsl(var(--primary-foreground))'
   			},
+  			warning: {
+  				DEFAULT: 'hsl(var(--warning))',
+  				foreground: 'hsl(var(--warning-foreground))'
+  			},
   			popover: {
   				DEFAULT: 'hsl(var(--popover))',
   				foreground: 'hsl(var(--popover-foreground))'

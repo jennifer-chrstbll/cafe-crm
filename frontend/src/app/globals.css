@@ -21,6 +21,9 @@
     --destructive: 2 76% 56%; /* #E53935 */
     --destructive-foreground: 0 0% 100%;
     --success: 122 39% 49%; /* #4CAF50 */
+    --success-foreground: 0 0% 100%;
+    --warning: 35 95% 50%; /* Amber — untuk status peringatan (belum bayar, hampir penuh) */
+    --warning-foreground: 0 0% 100%;
     --border: 20 5.9% 90%;
     --input: 20 5.9% 90%;
     --ring: 20 33% 27%;
@@ -35,6 +38,29 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
+    --background: 20 14% 8%;
+    --foreground: 40 30% 94%;
+    --card: 20 14% 11%;
+    --card-foreground: 40 30% 94%;
+    --popover: 20 14% 11%;
+    --popover-foreground: 40 30% 94%;
+    --primary: 30 53% 64%; /* accent jadi primary di dark */
+    --primary-foreground: 20 14% 4%;
+    --secondary: 26 40% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 20 14% 15%;
+    --muted-foreground: 25 10% 55%;
+    --accent: 20 33% 27%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 2 76% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 122 39% 49%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 95% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 20 14% 20%;
+    --input: 20 14% 20%;
+    --ring: 30 53% 64%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

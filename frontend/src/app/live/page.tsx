@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UserCheck, UserX, Camera, Loader2, Sparkles, ShoppingCart } from "lucide-react";
@@ -24,8 +25,17 @@ export default function LiveRecognitionPage() {
   const router = useRouter();
   const [latestEvent, setLatestEvent] = useState<LiveEvent | null>(null);
   const [recentLogs, setRecentLogs] = useState<RecognitionLog[]>([]);
-  const [streamUrl, setStreamUrl] = useState("http://192.168.18.80:5001/video_feed");
+  // Stream URL dibaca dari Settings (diset Owner) → tidak bisa diubah kasir
+  // Sesuai perbaikan 8.9: konfigurasi teknis bukan interaksi harian kasir
+  const [streamUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("cafe_stream_url") || "http://192.168.18.80:5001/video_feed";
+    }
+    return "http://192.168.18.80:5001/video_feed";
+  });
+  const [cameraOnline, setCameraOnline] = useState<boolean | null>(null);
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+
   
   // Enroll state
   const [enrollName, setEnrollName] = useState("");
@@ -133,27 +143,26 @@ export default function LiveRecognitionPage() {
               {/* CCTV Stream dari Arduino Uno Q */}
               <img
                 src={streamUrl}
-                alt="CCTV Stream"
+                alt="Live CCTV Stream"
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = ""; // Clear src to prevent broken image icon
-                  (e.target as HTMLImageElement).alt = "CCTV Offline (Pastikan camera_agent.py berjalan di Arduino)";
-                }}
+                onLoad={() => setCameraOnline(true)}
+                onError={() => setCameraOnline(false)}
               />
               <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2">
                 <Camera className="h-3 w-3" /> Camera 1 Active
               </div>
             </div>
 
-            {/* Configurable Stream URL Bar */}
-            <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-lg border border-border">
-              <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🎥 Stream URL:</span>
-              <Input
-                value={streamUrl}
-                onChange={(e) => setStreamUrl(e.target.value)}
-                className="h-8 text-xs font-mono"
-                placeholder="http://192.168.x.x:5001/video_feed"
-              />
+            {/* Status Koneksi Kamera — kasir hanya perlu tahu connected/offline */}
+            {/* Input URL dikelola Owner di halaman Pengaturan (perbaikan 8.9) */}
+            <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-lg border border-border text-xs">
+              <span className={`relative flex h-2.5 w-2.5 flex-shrink-0`}>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${cameraOnline ? "bg-success" : cameraOnline === false ? "bg-destructive" : "bg-muted-foreground"}`} />
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${cameraOnline ? "bg-success" : cameraOnline === false ? "bg-destructive" : "bg-muted-foreground"}`} />
+              </span>
+              <span className={`font-semibold ${cameraOnline ? "text-success" : cameraOnline === false ? "text-destructive" : "text-muted-foreground"}`}>
+                {cameraOnline ? "Kamera Terhubung" : cameraOnline === false ? "Kamera Offline — Pastikan camera_agent.py berjalan" : "Menghubungkan kamera..."}
+              </span>
             </div>
 
             {/* Riwayat Live (Kecil di bawah kamera) */}
