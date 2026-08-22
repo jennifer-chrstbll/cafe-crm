@@ -15,6 +15,7 @@ from app.routers.pos import router as pos_router
 from app.routers.association import router as association_router
 from app.routers.workflow import router as workflow_router
 from app.routers.recommendation import router as recommendation_router
+from app.routers.biometrics import router as biometrics_router
 
 from app.services.recognition_service import recognition_service
 
@@ -54,5 +55,6 @@ app.include_router(pos_router)
 app.include_router(association_router)
 app.include_router(workflow_router)
 app.include_router(recommendation_router)
+app.include_router(biometrics_router)
 
 print("LOADED ROUTERS")

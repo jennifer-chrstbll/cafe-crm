@@ -1,27 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/services/api";
-import { CheckCircle2, Camera, Lock, Settings, User, ExternalLink } from "lucide-react";
+import {
+  CheckCircle2,
+  Camera,
+  Lock,
+  Settings,
+  User,
+  ExternalLink,
+  ShieldCheck,
+  Fingerprint,
+  Trash2,
+  AlertTriangle,
+  RefreshCw,
+  Info,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const STORAGE_KEY_STREAM_URL = "cafe_stream_url";
 const DEFAULT_STREAM_URL = "http://192.168.18.80:5001/video_feed";
 
+interface RetentionStatus {
+  total_embeddings: number;
+  total_customers_with_face: number;
+  configured_retention_days: number;
+  inactive_candidates_count: number;
+  oldest_embedding_created_at: string | null;
+  legal_basis: string;
+  policy_description: string;
+}
+
 /**
- * Halaman Pengaturan
- *
- * Perubahan dari versi sebelumnya:
- * - Tambah kartu "Konfigurasi Kamera" untuk Owner (perbaikan 8.9)
- *   Stream URL disimpan di localStorage — sederhana dan cukup untuk scope TA.
- *   Halaman Live membaca dari localStorage key "cafe_stream_url".
- * - Semua label → Bahasa Indonesia
+ * Halaman Pengaturan — Konfigurasi Akun, Kamera, dan Kebijakan Privasi Biometrik (UU PDP).
  */
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -37,10 +61,34 @@ export default function SettingsPage() {
   const [streamUrl, setStreamUrl] = useState(DEFAULT_STREAM_URL);
   const [streamUrlSaved, setStreamUrlSaved] = useState(false);
 
+  // ── Biometric Retention (Owner only - UU PDP No. 27/2022) ──
+  const [retentionDays, setRetentionDays] = useState("90");
+  const [retentionStatus, setRetentionStatus] = useState<RetentionStatus | null>(null);
+  const [retentionLoading, setRetentionLoading] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY_STREAM_URL);
     if (saved) setStreamUrl(saved);
   }, []);
+
+  const fetchRetentionStatus = useCallback(async (days: string) => {
+    if (!isOwner) return;
+    setRetentionLoading(true);
+    try {
+      const res = await api.get(`/biometrics/retention-status?retention_days=${days}`);
+      setRetentionStatus(res.data);
+    } catch (err) {
+      console.error("Gagal mengambil status retensi biometrik:", err);
+    } finally {
+      setRetentionLoading(false);
+    }
+  }, [isOwner]);
+
+  useEffect(() => {
+    fetchRetentionStatus(retentionDays);
+  }, [fetchRetentionStatus, retentionDays]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +118,32 @@ export default function SettingsPage() {
     localStorage.setItem(STORAGE_KEY_STREAM_URL, DEFAULT_STREAM_URL);
   };
 
+  const handleExecuteCleanup = async () => {
+    const daysNum = parseInt(retentionDays, 10);
+    const confirmed = window.confirm(
+      `Jalankan pembersihan retensi biometrik untuk pelanggan yang tidak berkunjung lebih dari ${daysNum} hari?\n\n` +
+      `Tindakan ini menghapus vector embedding wajah yang kedaluwarsa. Data profil dan transaksi pelanggan tetap aman.`
+    );
+    if (!confirmed) return;
+
+    setCleanupLoading(true);
+    setCleanupResult(null);
+    try {
+      const res = await api.post("/biometrics/retention-cleanup", {
+        retention_days: daysNum,
+        dry_run: false,
+      });
+      setCleanupResult(
+        `Berhasil! ${res.data.deleted_embeddings_count} embedding kedaluwarsa dibersihkan. Galeri pengenalan (FAISS) diperbarui (${res.data.reloaded_faiss_count} aktif).`
+      );
+      await fetchRetentionStatus(retentionDays);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Pembersihan retensi gagal. Coba lagi.");
+    } finally {
+      setCleanupLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6 max-w-2xl pb-8">
@@ -79,7 +153,7 @@ export default function SettingsPage() {
             <Settings className="h-7 w-7" /> Pengaturan
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Konfigurasi akun dan sistem kafe.
+            Konfigurasi akun, kamera, dan kepatuhan privasi data kafe.
           </p>
         </div>
 
@@ -150,6 +224,116 @@ export default function SettingsPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Kebijakan Retensi Data Biometrik — Owner only (UU PDP No. 27/2022) */}
+        {isOwner && (
+          <Card className="border-2 border-primary/20 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base text-primary font-bold">
+                  <Fingerprint className="h-5 w-5 text-accent" /> Retensi Data Biometrik (Embedding)
+                </CardTitle>
+                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs">
+                  UU PDP No. 27/2022
+                </Badge>
+              </div>
+              <CardDescription>
+                Kebijakan masa simpan (Storage Limitation) vektor embedding biometrik wajah di basis data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Metrik status embedding */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-xl bg-muted/40 border border-border text-center">
+                  <p className="text-xl font-bold text-primary">
+                    {retentionLoading ? "..." : retentionStatus?.total_embeddings ?? 0}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Total Embedding</p>
+                </div>
+                <div className="p-3 rounded-xl bg-muted/40 border border-border text-center">
+                  <p className="text-xl font-bold text-success">
+                    {retentionLoading ? "..." : retentionStatus?.total_customers_with_face ?? 0}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Pelanggan Aktif</p>
+                </div>
+                <div className="p-3 rounded-xl bg-warning/10 border border-warning/30 text-center">
+                  <p className="text-xl font-bold text-warning">
+                    {retentionLoading ? "..." : retentionStatus?.inactive_candidates_count ?? 0}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Kedaluwarsa</p>
+                </div>
+              </div>
+
+              {/* Kontrol Masa Retensi */}
+              <div className="space-y-2 pt-1">
+                <label className="block text-sm font-medium text-foreground">
+                  Masa Retensi Wajah Pelanggan Non-Aktif
+                </label>
+                <div className="flex gap-2">
+                  <Select value={retentionDays} onValueChange={setRetentionDays}>
+                    <SelectTrigger id="select-retensi-hari" className="flex-1">
+                      <SelectValue placeholder="Pilih batas waktu" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 Hari (Uji Coba Ketat)</SelectItem>
+                      <SelectItem value="90">90 Hari (Standar Rekomendasi)</SelectItem>
+                      <SelectItem value="180">180 Hari (6 Bulan)</SelectItem>
+                      <SelectItem value="365">365 Hari (1 Tahun)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    id="btn-refresh-retensi"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fetchRetentionStatus(retentionDays)}
+                    disabled={retentionLoading}
+                    title="Segarkan data retensi"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${retentionLoading ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pelanggan yang tidak berkunjung dalam {retentionDays} hari akan dikategorikan kedaluwarsa.
+                </p>
+              </div>
+
+              {/* Banner feedback hasil cleanup */}
+              {cleanupResult && (
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-success/10 border border-success/30 text-xs text-success animate-in fade-in">
+                  <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>{cleanupResult}</span>
+                </div>
+              )}
+
+              {/* Tombol aksi pembersihan */}
+              <Button
+                id="btn-jalankan-pembersihan-retensi"
+                variant="outline"
+                className="w-full gap-2 border-warning/40 text-warning hover:bg-warning/10 font-bold"
+                onClick={handleExecuteCleanup}
+                disabled={cleanupLoading || (retentionStatus?.inactive_candidates_count ?? 0) === 0}
+              >
+                <Trash2 className={`h-4 w-4 ${cleanupLoading ? "animate-spin" : ""}`} />
+                {cleanupLoading
+                  ? "Membersihkan..."
+                  : `Bersihkan ${retentionStatus?.inactive_candidates_count ?? 0} Embedding Kedaluwarsa`}
+              </Button>
+
+              {/* Info Kepatuhan Hukum */}
+              <div className="rounded-lg bg-primary/5 border border-primary/15 p-3 text-xs text-muted-foreground space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-primary">
+                  <ShieldCheck className="h-4 w-4 text-success" />
+                  <span>Prinsip Pembatasan Penyimpanan (UU PDP Pasal 35 & GDPR)</span>
+                </div>
+                <p>
+                  Pembersihan retensi hanya menghapus data vektor biometrik wajah. Profil CRM dan riwayat
+                  transaksi penjualan tetap tersimpan aman tanpa data biometrik yang sensitif.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Konfigurasi Kamera — Owner only */}
         {isOwner && (
