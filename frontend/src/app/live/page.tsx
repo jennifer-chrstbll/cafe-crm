@@ -281,12 +281,22 @@ export default function LiveRecognitionPage() {
                             </div>
                           ))}
                         </div>
-                        <Button
-                          className="w-full bg-warning hover:bg-warning/90 text-warning-foreground font-bold"
-                          onClick={() => router.push(`/pos?customerId=${latestEvent.customer_id}`)}
-                        >
-                          💳 Pelunasan Tagihan (Rp {Number(latestEvent.unpaid_order.total_amount).toLocaleString("id-ID")})
-                        </Button>
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            className="flex-1 bg-warning hover:bg-warning/90 text-warning-foreground font-bold shadow-sm"
+                            onClick={() => router.push("/unpaid")}
+                          >
+                            💳 Lunaskan di Halaman Belum Bayar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="border-warning/40 text-warning hover:bg-warning/10 font-bold"
+                            onClick={() => router.push(`/pos?customerId=${latestEvent.customer_id}`)}
+                            title="Tambah item pesanan baru ke tagihan ini"
+                          >
+                            ➕ Nambah Pesanan
+                          </Button>
+                        </div>
                       </div>
                     )}
 

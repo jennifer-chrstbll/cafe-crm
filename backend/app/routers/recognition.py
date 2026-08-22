@@ -42,6 +42,18 @@ class FavoriteItem(BaseModel):
     total_qty: int
 
 
+class UnpaidOrderItem(BaseModel):
+    menu_name: str
+    qty: int
+    subtotal: float
+
+
+class UnpaidOrderResponse(BaseModel):
+    visit_id: str
+    total_amount: float
+    items: list[UnpaidOrderItem] = []
+
+
 class LiveEventResponse(BaseModel):
     log_id: str
     recognized: bool
@@ -55,6 +67,7 @@ class LiveEventResponse(BaseModel):
     snapshot_url: Optional[str] = None
     has_active_visit: bool = False
     photo_temporary: bool = True
+    unpaid_order: Optional[UnpaidOrderResponse] = None
     created_at: str
 
 
@@ -179,6 +192,31 @@ def get_latest_recognition():
                     for r in fav_rows
                 ]
 
+                # Check for active unpaid stay-in orders
+                unpaid_order_data = None
+                if has_active_visit and active_visit:
+                    unpaid_rows = (
+                        db.query(Order, Menu.name)
+                        .join(Menu, Menu.menu_id == Order.menu_id)
+                        .filter(Order.visit_id == active_visit.visit_id)
+                        .filter(Order.transaction_id.is_(None))
+                        .all()
+                    )
+                    if unpaid_rows:
+                        total_unpaid = sum(o[0].subtotal for o in unpaid_rows)
+                        unpaid_order_data = UnpaidOrderResponse(
+                            visit_id=str(active_visit.visit_id),
+                            total_amount=float(total_unpaid),
+                            items=[
+                                UnpaidOrderItem(
+                                    menu_name=o[1],
+                                    qty=o[0].qty,
+                                    subtotal=float(o[0].subtotal)
+                                )
+                                for o in unpaid_rows
+                            ]
+                        )
+
         return LiveEventResponse(
             log_id=str(log.log_id),
             recognized=log.recognized,
@@ -192,6 +230,7 @@ def get_latest_recognition():
             snapshot_url=snapshot_url,
             has_active_visit=has_active_visit,
             photo_temporary=True,
+            unpaid_order=unpaid_order_data,
             created_at=log.created_at.isoformat(),
         )
     finally:
