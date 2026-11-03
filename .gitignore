@@ -53,3 +53,10 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Secrets / local files
+wpa_supplicant.conf
+look.py
+*.tsbuildinfo
+legacy/backend_fastapi/venv/
+legacy/backend_fastapi/.env
