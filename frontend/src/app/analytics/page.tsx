@@ -1,275 +1,167 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
-import api from "@/services/api";
-import { ProductAnalytics, CustomerSegment } from "@/types";
+import { useState } from "react";
+import Link from "next/link";
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AppShell } from "@/components/app/AppShell";
+import { PageHeader, Panel, SegmentBadge, Segmented, StatCard } from "@/components/app/bits";
+import { ChartSkeleton, ErrorState, StatGridSkeleton } from "@/components/app/states";
+import { useApi } from "@/hooks/useApi";
+import { cn } from "@/lib/utils";
+import { CATEGORY_LABEL, formatDuration, formatNumber, formatPercent, formatRupiah, formatRupiahShort } from "@/lib/format";
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip
-} from "recharts";
+interface Overview {
+  days: number;
+  totals: { revenue: number; transactions: number; avg_ticket: number; visits: number; visitors: number;
+            returning_rate: number; avg_duration_min: number | null; guest_share: number };
+  daily: { date: string; revenue: number; transactions: number; visits: number }[];
+  hours: { hour: number; qty: number }[];
+  heatmap: number[][];
+  products: { name: string; category: string; qty: number; revenue: number }[];
+  categories: { category: string; revenue: number }[];
+  segments: { segment: string; count: number }[];
+  top_customers: { customer_id: string; name: string; visits: number; spend: number }[];
+  recognition: { events: number; known: number; checked: number; precision: number | null };
+}
 
-const SEGMENT_COLORS: Record<string, string> = { VIP: "#D4A373", Regular: "#8B5E3C", New: "#5C3D2E" };
-const SEGMENT_EMOJI: Record<string, string> = { VIP: "👑", Regular: "⭐", New: "🌱" };
+const DAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+const shortDate = (k: string) => new Date(`${k}T12:00:00+07:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+
+/** Busy-times heatmap: one hue, darker = busier (sequential scale, readable without a legend key). */
+function Heatmap({ data }: { data: number[][] }) {
+  const max = Math.max(1, ...data.flat());
+  const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 07–22
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-separate border-spacing-1 text-xs" aria-label="Jumlah item terjual per hari dan jam">
+        <thead><tr><th />{hours.map((h) => <th key={h} className="num font-medium text-muted-foreground">{h}</th>)}</tr></thead>
+        <tbody>
+          {data.map((row, d) => (
+            <tr key={d}>
+              <th className="pr-1 text-left font-medium text-muted-foreground">{DAYS[d]}</th>
+              {hours.map((h) => {
+                const v = row[h] ?? 0;
+                return (
+                  <td key={h} title={`${DAYS[d]} ${h}.00 · ${v} item`} className="h-7 min-w-7 rounded"
+                    style={{ background: v ? `hsl(var(--primary) / ${0.12 + 0.88 * (v / max)})` : "hsl(var(--muted))" }}>
+                    <span className="sr-only">{v}</span>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
-
-  const [visitTrend, setVisitTrend] = useState<any[]>([]);
-  const [topCustomers, setTopCustomers] = useState<any[]>([]);
-  const [peakHours, setPeakHours] = useState<any[]>([]);
-  const [returningRate, setReturningRate] = useState<any>(null);
-  const [accuracy, setAccuracy] = useState<any>(null);
-  const [productAnalytics, setProductAnalytics] = useState<ProductAnalytics[]>([]);
-  const [segments, setSegments] = useState<CustomerSegment[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isLoading && user?.role !== "OWNER") router.push("/dashboard");
-  }, [user, isLoading, router]);
-
-  useEffect(() => {
-    if (user?.role !== "OWNER") return;
-    async function fetchData() {
-      try {
-        const [visitsRes, topRes, peakRes, retRes, accRes, prodRes, segRes] = await Promise.all([
-          api.get("/analytics/visit-trend"),
-          api.get("/analytics/top-customers"),
-          api.get("/analytics/peak-hours"),
-          api.get("/analytics/returning-rate"),
-          api.get("/analytics/recognition-accuracy"),
-          api.get("/analytics/product-analytics"),
-          api.get("/analytics/customer-segments"),
-        ]);
-        setVisitTrend(visitsRes.data);
-        setTopCustomers(topRes.data);
-        setPeakHours(peakRes.data);
-        setReturningRate(retRes.data);
-        setAccuracy(accRes.data);
-        setProductAnalytics(prodRes.data);
-        setSegments(segRes.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [user]);
-
-  if (user?.role !== "OWNER") return null;
-
-  const top8 = productAnalytics.slice(0, 8);
-  const recognitionData = accuracy ? [{ name: "Dikenali", value: accuracy.known }, { name: "Tidak Dikenali", value: accuracy.unknown }] : [];
-  const returningData = returningRate ? [{ name: "Returning", value: returningRate.returning }, { name: "Baru", value: returningRate.new_customers }] : [];
+  const [days, setDays] = useState<"7" | "30" | "90">("30");
+  const o = useApi<Overview>(`/analytics/overview?days=${days}`);
+  const x = o.data;
+  const catTotal = (x?.categories ?? []).reduce((s, c) => s + c.revenue, 0);
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col gap-6 pb-12">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary">Analytics</h1>
-          <p className="text-muted-foreground mt-1">Laporan bisnis komprehensif untuk owner.</p>
-        </div>
+    <AppShell ownerOnly>
+      <PageHeader title="Analitik" description="Tren penjualan dan pelanggan"
+        actions={<Segmented value={days} onChange={setDays} options={[{ value: "7", label: "7 hari" }, { value: "30", label: "30 hari" }, { value: "90", label: "90 hari" }]} />} />
 
-        {loading ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-72 rounded-xl bg-muted animate-pulse" />)}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {/* Row 1 */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader><CardTitle>Tren Kunjungan</CardTitle></CardHeader>
-                <CardContent className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={visitTrend}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="date" stroke="#888" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#888" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="visits" stroke="#5C3D2E" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle>Peak Hours</CardTitle></CardHeader>
-                <CardContent className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={peakHours}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="hour" stroke="#888" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}:00`} />
-                      <YAxis stroke="#888" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Bar dataKey="visits" fill="#8B5E3C" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+      {o.loading ? <><StatGridSkeleton /><ChartSkeleton className="mt-4 h-72" /></>
+        : o.error ? <ErrorState message={o.error} onRetry={o.reload} />
+        : x && (
+          <div className={cn("space-y-4 transition-opacity", o.refreshing && "opacity-60")}>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard label="Pendapatan" value={formatRupiah(x.totals.revenue)} hint={`${formatNumber(x.totals.transactions)} transaksi`} />
+              <StatCard label="Rata-rata per transaksi" value={formatRupiah(x.totals.avg_ticket)} hint={`${formatPercent(x.totals.guest_share)} dari tamu tanpa data`} />
+              <StatCard label="Pelanggan kembali" value={formatPercent(x.totals.returning_rate)} hint={`dari ${x.totals.visitors} pelanggan yang datang`} />
+              <StatCard label="Lama kunjungan" value={formatDuration(x.totals.avg_duration_min ? Math.round(x.totals.avg_duration_min) : null)} hint={`${x.totals.visits} kunjungan tercatat`} />
             </div>
 
-            {/* Row 2 */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader><CardTitle>Top Customers</CardTitle></CardHeader>
-                <CardContent className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topCustomers} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                      <XAxis type="number" stroke="#888" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis dataKey="customer_name" type="category" stroke="#888" fontSize={11} tickLine={false} axisLine={false} width={80} />
-                      <Tooltip />
-                      <Bar dataKey="visit_count" fill="#D4A373" radius={[0, 4, 4, 0]} />
+            <Panel title={<div><h2 className="font-semibold">Pendapatan & kunjungan</h2><p className="text-xs text-muted-foreground">Apakah penjualan naik atau turun?</p></div>}>
+              <div className="h-72" role="img" aria-label="Grafik pendapatan dan kunjungan per hari">
+                <ResponsiveContainer>
+                  <ComposedChart data={x.daily} margin={{ left: 0, right: 8, top: 8 }}>
+                    <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" tickFormatter={shortDate} tickLine={false} axisLine={false} fontSize={12} minTickGap={24} />
+                    <YAxis yAxisId="r" tickFormatter={formatRupiahShort} tickLine={false} axisLine={false} width={70} fontSize={12} />
+                    <YAxis yAxisId="v" orientation="right" tickLine={false} axisLine={false} width={32} fontSize={12} allowDecimals={false} />
+                    <Tooltip labelFormatter={shortDate} formatter={(v: number, n: string) => (n === "revenue" ? [formatRupiah(v), "Pendapatan"] : [v, "Kunjungan"])} />
+                    <Bar yAxisId="r" dataKey="revenue" fill="hsl(var(--primary) / 0.75)" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="v" dataKey="visits" stroke="hsl(var(--info))" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mt-2 flex gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary/75" /> Pendapatan</span>
+                <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-info" /> Kunjungan pelanggan terdaftar</span>
+              </p>
+            </Panel>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Panel title={<div><h2 className="font-semibold">Jam ramai</h2><p className="text-xs text-muted-foreground">Kapan perlu tambahan staf?</p></div>}>
+                <Heatmap data={x.heatmap} />
+              </Panel>
+              <Panel title={<div><h2 className="font-semibold">Menu terlaris</h2><p className="text-xs text-muted-foreground">Menu mana yang menghasilkan uang?</p></div>}>
+                <div className="h-72">
+                  <ResponsiveContainer>
+                    <BarChart data={x.products} layout="vertical" margin={{ left: 8, right: 16 }}>
+                      <XAxis type="number" tickFormatter={formatRupiahShort} tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false} fontSize={12} />
+                      <Tooltip cursor={{ fill: "hsl(var(--muted))" }} formatter={(v: number) => [formatRupiah(v), "Pendapatan"]} />
+                      <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle>Customer Segmentation</CardTitle></CardHeader>
-                <CardContent className="h-64 flex items-center justify-center">
-                  <div className="flex gap-6 items-center w-full">
-                    <div className="w-1/2 h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={segments} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={4} dataKey="count">
-                            {segments.map((entry) => (
-                              <Cell key={entry.segment} fill={SEGMENT_COLORS[entry.segment] || "#888"} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      {segments.map(seg => (
-                        <div key={seg.segment} className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: SEGMENT_COLORS[seg.segment] }} />
-                          <span className="text-sm">{SEGMENT_EMOJI[seg.segment]} {seg.segment}</span>
-                          <span className="ml-auto font-bold">{seg.count}</span>
-                        </div>
-                      ))}
-                      <div className="text-xs text-muted-foreground pt-1 border-t">VIP ≥15 · Regular 5–14 · New &lt;5</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </Panel>
             </div>
 
-            {/* Row 3 — Product Analytics */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader><CardTitle>Most Ordered (Qty)</CardTitle></CardHeader>
-                <CardContent className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={top8} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                      <XAxis type="number" stroke="#888" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis dataKey="menu_name" type="category" stroke="#888" fontSize={11} tickLine={false} axisLine={false} width={90} />
-                      <Tooltip />
-                      <Bar dataKey="total_qty" fill="#5C3D2E" radius={[0, 4, 4, 0]} name="Qty" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle>Revenue per Produk</CardTitle></CardHeader>
-                <CardContent className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={top8} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                      <XAxis type="number" stroke="#888" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-                      <YAxis dataKey="menu_name" type="category" stroke="#888" fontSize={11} tickLine={false} axisLine={false} width={90} />
-                      <Tooltip formatter={(v: any) => [`Rp ${Number(v).toLocaleString("id-ID")}`, "Revenue"]} />
-                      <Bar dataKey="total_revenue" fill="#D4A373" radius={[0, 4, 4, 0]} name="Revenue" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+            <div className="grid gap-4 xl:grid-cols-3">
+              <Panel title="Kategori">
+                <ul className="space-y-3">
+                  {x.categories.sort((a, b) => b.revenue - a.revenue).map((c) => (
+                    <li key={c.category}>
+                      <div className="flex justify-between text-sm"><span>{CATEGORY_LABEL[c.category] ?? c.category}</span><span className="num font-medium">{formatPercent(catTotal ? c.revenue / catTotal : 0)}</span></div>
+                      <div className="mt-1 h-2 rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${catTotal ? (c.revenue / catTotal) * 100 : 0}%` }} /></div>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+              <Panel title="Segmen pelanggan">
+                <ul className="space-y-3">
+                  {x.segments.map((s) => (
+                    <li key={s.segment} className="flex items-center justify-between"><SegmentBadge segment={s.segment} /><span className="num text-lg font-semibold">{s.count}</span></li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-muted-foreground">Baru &lt; 5 kunjungan · Langganan 5–14 · VIP ≥ 15</p>
+              </Panel>
+              <Panel title="Pengenalan wajah">
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Kejadian di kasir</dt><dd className="num font-medium">{x.recognition.events}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Dikenali</dt><dd className="num font-medium">{formatPercent(x.recognition.events ? x.recognition.known / x.recognition.events : null)}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Akurasi (konfirmasi kasir)</dt><dd className="num font-medium">{formatPercent(x.recognition.precision, 1)}</dd></div>
+                </dl>
+                <Link href="/recognition-logs" className="mt-3 inline-block text-sm font-medium text-info hover:underline">Lihat log pengenalan</Link>
+              </Panel>
             </div>
 
-            {/* Row 4 — Recognition */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader><CardTitle>Recognition Accuracy</CardTitle></CardHeader>
-                <CardContent className="h-56 flex items-center">
-                  <div className="flex gap-6 items-center w-full">
-                    <div className="w-1/2 h-44">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={recognitionData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
-                            <Cell fill="#4CAF50" />
-                            <Cell fill="#E53935" />
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      {recognitionData.map((d, i) => (
-                        <div key={d.name} className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: i === 0 ? "#4CAF50" : "#E53935" }} />
-                          <span className="text-sm">{d.name}</span>
-                          <span className="ml-auto font-bold">{d.value}</span>
-                        </div>
-                      ))}
-                      {accuracy && <div className="text-xs text-muted-foreground pt-1 border-t">Accuracy: {accuracy.known_percent}%</div>}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle>Returning vs New Customer</CardTitle></CardHeader>
-                <CardContent className="h-56 flex items-center">
-                  <div className="flex gap-6 items-center w-full">
-                    <div className="w-1/2 h-44">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={returningData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
-                            <Cell fill="#5C3D2E" />
-                            <Cell fill="#D4A373" />
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      {returningData.map((d, i) => (
-                        <div key={d.name} className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: i === 0 ? "#5C3D2E" : "#D4A373" }} />
-                          <span className="text-sm">{d.name}</span>
-                          <span className="ml-auto font-bold">{d.value}</span>
-                        </div>
-                      ))}
-                      {returningRate && <div className="text-xs text-muted-foreground pt-1 border-t">Returning rate: {returningRate.returning_percent}%</div>}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Panel title="Pelanggan paling sering datang" bodyClassName="p-0">
+              <ol className="divide-y">
+                {x.top_customers.map((c, i) => (
+                  <li key={c.customer_id}>
+                    <Link href={`/customers/${c.customer_id}`} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/60">
+                      <span className="num w-5 font-semibold text-muted-foreground">{i + 1}</span>
+                      <span className="flex-1 font-medium">{c.name}</span>
+                      <span className="num text-muted-foreground">{c.visits} kunjungan</span>
+                      <span className="num w-28 text-right font-semibold">{formatRupiah(c.spend)}</span>
+                    </Link>
+                  </li>
+                ))}
+                {!x.top_customers.length && <li className="p-4 text-sm text-muted-foreground">Belum ada kunjungan pelanggan terdaftar.</li>}
+              </ol>
+            </Panel>
           </div>
         )}
-      </div>
-    </DashboardLayout>
+    </AppShell>
   );
 }

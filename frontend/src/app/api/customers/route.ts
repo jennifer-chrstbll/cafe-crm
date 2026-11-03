@@ -1,92 +1,70 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db, getSegment } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { db, fetchAll, getSegment, GUEST_ID } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import { ApiError, body, json, route } from "@/lib/server/http";
 
-// GET /api/customers — list all active customers
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const search = searchParams.get("search") ?? "";
+export const dynamic = "force-dynamic";
 
-    const supabase = db();
+/** GET /api/customers?search=&segment=VIP|Regular|New&sort=name|recent|visits&offset=&limit= */
+export const GET = route(async (req: NextRequest) => {
+  await requireUser(req);
+  const p = req.nextUrl.searchParams;
+  const search = (p.get("search") ?? "").trim().toLowerCase();
+  const segment = p.get("segment");
+  const sort = p.get("sort") ?? "recent";
+  const limit = Math.min(parseInt(p.get("limit") ?? "24"), 200);
+  const offset = Math.max(parseInt(p.get("offset") ?? "0"), 0);
+  const sb = db();
 
-    let query = supabase
-      .from("customers")
-      .select("customer_id, name, phone_number, email, gender, date_of_birth, notes, is_active, created_at")
-      .eq("is_active", true)
-      .order("name");
+  const [customers, visits, faces] = await Promise.all([
+    fetchAll<any>((a, b) => sb.from("customers")
+      .select("customer_id, name, phone_number, created_at, consent_given")
+      .eq("is_active", true).neq("customer_id", GUEST_ID).range(a, b) as never),
+    fetchAll<{ customer_id: string; entry_time: string }>((a, b) =>
+      sb.from("visits").select("customer_id, entry_time").neq("customer_id", GUEST_ID).range(a, b) as never),
+    fetchAll<{ customer_id: string }>((a, b) =>
+      sb.from("embeddings").select("customer_id").not("customer_id", "is", null).range(a, b) as never),
+  ]);
 
-    if (search) {
-      query = query.ilike("name", `%${search}%`);
-    }
-
-    const { data: customers, error } = await query;
-    if (error) throw error;
-
-    // Get visit counts for all customers
-    const customerIds = (customers ?? []).map((c: any) => c.customer_id);
-
-    const { data: visitCounts } = await supabase
-      .from("visits")
-      .select("customer_id")
-      .in("customer_id", customerIds);
-
-    const countMap: Record<string, number> = {};
-    for (const v of visitCounts ?? []) {
-      countMap[v.customer_id] = (countMap[v.customer_id] || 0) + 1;
-    }
-
-    // Get last visit for each customer
-    const { data: lastVisits } = await supabase
-      .from("visits")
-      .select("customer_id, entry_time")
-      .in("customer_id", customerIds)
-      .order("entry_time", { ascending: false });
-
-    const lastVisitMap: Record<string, string> = {};
-    for (const v of lastVisits ?? []) {
-      if (!lastVisitMap[v.customer_id]) {
-        lastVisitMap[v.customer_id] = v.entry_time;
-      }
-    }
-
-    const result = (customers ?? []).map((c: any) => {
-      const vc = countMap[c.customer_id] ?? 0;
-      return {
-        ...c,
-        visit_count: vc,
-        last_visit: lastVisitMap[c.customer_id] ?? null,
-        segment: getSegment(vc),
-      };
-    });
-
-    return NextResponse.json(result);
-  } catch (e) {
-    console.error("[/api/customers GET]", e);
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+  const stats = new Map<string, { n: number; last: string | null }>();
+  for (const v of visits) {
+    const s = stats.get(v.customer_id) ?? { n: 0, last: null };
+    s.n++;
+    if (!s.last || v.entry_time > s.last) s.last = v.entry_time;
+    stats.set(v.customer_id, s);
   }
-}
+  const withFace = new Set(faces.map((f) => f.customer_id));
 
-// POST /api/customers — create new customer
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { name, phone_number, email, gender, date_of_birth, notes } = body;
-
-    if (!name) {
-      return NextResponse.json({ detail: "Nama wajib diisi" }, { status: 422 });
-    }
-
-    const { data, error } = await db()
-      .from("customers")
-      .insert({ name, phone_number, email, gender, date_of_birth, notes, is_active: true })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json({ ...data, visit_count: 0, last_visit: null, segment: "New" }, { status: 201 });
-  } catch (e) {
-    console.error("[/api/customers POST]", e);
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+  let rows = customers.map((c) => {
+    const s = stats.get(c.customer_id) ?? { n: 0, last: null };
+    return { ...c, visit_count: s.n, last_visit: s.last, segment: getSegment(s.n), has_face: withFace.has(c.customer_id) };
+  });
+  if (search) {
+    rows = rows.filter((c) => c.name.toLowerCase().includes(search) || (c.phone_number ?? "").includes(search));
   }
-}
+  if (segment) rows = rows.filter((c) => c.segment === segment);
+  rows.sort((a, b) =>
+    sort === "name" ? a.name.localeCompare(b.name, "id")
+    : sort === "visits" ? b.visit_count - a.visit_count
+    : (b.last_visit ?? b.created_at).localeCompare(a.last_visit ?? a.created_at));
+
+  return json({ total: rows.length, items: rows.slice(offset, offset + limit) });
+});
+
+/** Create a customer without a face (e.g. phone-only member). Face enrollment: POST /api/enrollment. */
+export const POST = route(async (req: NextRequest) => {
+  await requireUser(req);
+  const b = await body<{ name?: string; phone_number?: string; notes?: string }>(req);
+  const name = b.name?.trim();
+  if (!name) throw new ApiError(422, "Nama pelanggan wajib diisi.");
+  const phone = b.phone_number?.trim() || null;
+  if (phone) {
+    const { data: dup } = await db().from("customers").select("name").eq("phone_number", phone).maybeSingle();
+    if (dup) throw new ApiError(409, `Nomor HP ini sudah terdaftar atas nama ${dup.name}.`);
+  }
+  const { data, error } = await db().from("customers")
+    .insert({ name, phone_number: phone, notes: b.notes?.trim() || null, is_active: true })
+    .select("customer_id, name").single();
+  if (error) throw new Error(error.message);
+  return json(data, 201);
+});

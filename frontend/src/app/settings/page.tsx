@@ -1,431 +1,205 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { Cpu, KeyRound, Shield, Store } from "lucide-react";
+import { AppShell } from "@/components/app/AppShell";
+import { Field, PageHeader, Panel, Pill } from "@/components/app/bits";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
+import { ErrorState, ListSkeleton } from "@/components/app/states";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import api from "@/services/api";
-import {
-  CheckCircle2,
-  Camera,
-  Lock,
-  Settings,
-  User,
-  ExternalLink,
-  ShieldCheck,
-  Fingerprint,
-  Trash2,
-  AlertTriangle,
-  RefreshCw,
-  Info,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useApi } from "@/hooks/useApi";
+import api, { errorMessage } from "@/services/api";
+import { cn } from "@/lib/utils";
+import { formatDate, timeAgo } from "@/lib/format";
+import { AppSettings, Device } from "@/types";
 
-const STORAGE_KEY_STREAM_URL = "cafe_stream_url";
-const DEFAULT_STREAM_URL = "http://192.168.18.80:5001/video_feed";
+const TABS = [
+  { id: "account", label: "Akun", icon: KeyRound, owner: false },
+  { id: "devices", label: "Perangkat", icon: Cpu, owner: true },
+  { id: "cafe", label: "Kafe & asosiasi", icon: Store, owner: true },
+  { id: "privacy", label: "Privasi", icon: Shield, owner: true },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
 
-interface RetentionStatus {
-  total_embeddings: number;
-  total_customers_with_face: number;
-  configured_retention_days: number;
-  inactive_candidates_count: number;
-  oldest_embedding_created_at: string | null;
-  legal_basis: string;
-  policy_description: string;
+function Account() {
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <Panel title="Ganti kata sandi" className="max-w-lg">
+      <form className="space-y-4" onSubmit={async (e) => {
+        e.preventDefault(); setBusy(true);
+        try { await api.put("/users/me/password", { current_password: cur, new_password: next }); toast.success("Kata sandi diganti"); setCur(""); setNext(""); }
+        catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+      }}>
+        <Field label="Kata sandi saat ini" htmlFor="pw-cur"><Input id="pw-cur" type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
+        <Field label="Kata sandi baru" htmlFor="pw-new" hint="Minimal 8 karakter."><Input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></Field>
+        <Button type="submit" size="lg" disabled={busy || !cur || next.length < 8}>{busy ? "Menyimpan…" : "Simpan kata sandi"}</Button>
+      </form>
+    </Panel>
+  );
 }
 
-/**
- * Halaman Pengaturan — Konfigurasi Akun, Kamera, dan Kebijakan Privasi Biometrik (UU PDP).
- */
-export default function SettingsPage() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const isOwner = user?.role === "OWNER";
-
-  // ── Password ──
-  const [password, setPassword] = useState("");
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-
-  // ── Stream URL (Owner only) ──
-  const [streamUrl, setStreamUrl] = useState(DEFAULT_STREAM_URL);
-  const [streamUrlSaved, setStreamUrlSaved] = useState(false);
-
-  // ── Biometric Retention (Owner only - UU PDP No. 27/2022) ──
-  const [retentionDays, setRetentionDays] = useState("90");
-  const [retentionStatus, setRetentionStatus] = useState<RetentionStatus | null>(null);
-  const [retentionLoading, setRetentionLoading] = useState(false);
-  const [cleanupLoading, setCleanupLoading] = useState(false);
-  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_STREAM_URL);
-    if (saved) setStreamUrl(saved);
-  }, []);
-
-  const fetchRetentionStatus = useCallback(async (days: string) => {
-    if (!isOwner) return;
-    setRetentionLoading(true);
-    try {
-      const res = await api.get(`/biometrics/retention-status?retention_days=${days}`);
-      setRetentionStatus(res.data);
-    } catch (err) {
-      console.error("Gagal mengambil status retensi biometrik:", err);
-    } finally {
-      setRetentionLoading(false);
-    }
-  }, [isOwner]);
-
-  useEffect(() => {
-    fetchRetentionStatus(retentionDays);
-  }, [fetchRetentionStatus, retentionDays]);
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordLoading(true);
-    setPasswordSuccess(false);
-    try {
-      await api.put(`/users/me/password`, { new_password: password });
-      setPasswordSuccess(true);
-      setPassword("");
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
-
-  const handleSaveStreamUrl = () => {
-    const trimmed = streamUrl.trim();
-    if (!trimmed) return;
-    localStorage.setItem(STORAGE_KEY_STREAM_URL, trimmed);
-    setStreamUrlSaved(true);
-    setTimeout(() => setStreamUrlSaved(false), 3000);
-  };
-
-  const handleResetStreamUrl = () => {
-    setStreamUrl(DEFAULT_STREAM_URL);
-    localStorage.setItem(STORAGE_KEY_STREAM_URL, DEFAULT_STREAM_URL);
-  };
-
-  const handleExecuteCleanup = async () => {
-    const daysNum = parseInt(retentionDays, 10);
-    const confirmed = window.confirm(
-      `Jalankan pembersihan retensi biometrik untuk pelanggan yang tidak berkunjung lebih dari ${daysNum} hari?\n\n` +
-      `Tindakan ini menghapus vector embedding wajah yang kedaluwarsa. Data profil dan transaksi pelanggan tetap aman.`
-    );
-    if (!confirmed) return;
-
-    setCleanupLoading(true);
-    setCleanupResult(null);
-    try {
-      const res = await api.post("/biometrics/retention-cleanup", {
-        retention_days: daysNum,
-        dry_run: false,
-      });
-      setCleanupResult(
-        `Berhasil! ${res.data.deleted_embeddings_count} embedding kedaluwarsa dibersihkan. Galeri pengenalan (FAISS) diperbarui (${res.data.reloaded_faiss_count} aktif).`
-      );
-      await fetchRetentionStatus(retentionDays);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Pembersihan retensi gagal. Coba lagi.");
-    } finally {
-      setCleanupLoading(false);
-    }
-  };
-
+function Devices({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => Promise<void> }) {
+  const devices = useApi<Device[]>("/devices", { interval: 15_000 });
+  const [d, setD] = useState(s.devices);
   return (
-    <DashboardLayout>
-      <div className="flex flex-col gap-6 max-w-2xl pb-8">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-            <Settings className="h-7 w-7" /> Pengaturan
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Konfigurasi akun, kamera, dan kepatuhan privasi data kafe.
-          </p>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Panel title="Status perangkat" bodyClassName="p-0">
+        {devices.loading ? <div className="p-4"><ListSkeleton rows={2} avatar={false} /></div> : !devices.data?.length ? (
+          <p className="p-4 text-sm text-muted-foreground">Belum ada perangkat yang mengirim status. Nyalakan Arduino UNO Q (kamera kasir) dan Raspberry Pi (kamera area).</p>
+        ) : (
+          <ul className="divide-y">
+            {devices.data.map((x) => (
+              <li key={x.device_id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <span className={cn("h-3 w-3 rounded-full", x.online ? "bg-success" : "bg-destructive")} aria-hidden />
+                <div className="flex-1">
+                  <p className="font-medium">{x.kind === "facerec" ? "Kamera kasir (UNO Q)" : x.kind === "persontrack" ? "Kamera area (Raspberry Pi)" : x.kind} · <span className="font-mono">{x.device_id}</span></p>
+                  <p className="text-muted-foreground">
+                    {x.online ? "Online" : "Offline"} · terakhir {timeAgo(x.last_seen_at)}
+                    {typeof x.info?.fps === "number" && ` · ${(x.info.fps as number).toFixed(1)} FPS`}
+                    {typeof x.info?.gallery === "number" && ` · ${x.info.gallery} wajah`}
+                  </p>
+                </div>
+                <Pill tone={x.online ? "success" : "danger"}>{x.online ? "Online" : "Offline"}</Pill>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel title="Identitas perangkat">
+        <form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); await save({ devices: d }); }}>
+          <Field label="ID kamera kasir" htmlFor="cam-c" hint="Harus sama dengan CAMERA_ID di .env UNO Q."><Input id="cam-c" value={d.cashier_camera_id} onChange={(e) => setD({ ...d, cashier_camera_id: e.target.value })} /></Field>
+          <Field label="ID kamera area (dekat kasir)" htmlFor="cam-a" hint="Kamera person tracking yang melihat area kasir."><Input id="cam-a" value={d.area_camera_id} onChange={(e) => setD({ ...d, area_camera_id: e.target.value })} /></Field>
+          <Field label="Alamat video kamera kasir" htmlFor="cam-s" hint="Hanya bisa dibuka dari jaringan Wi-Fi kafe."><Input id="cam-s" value={d.stream_url} onChange={(e) => setD({ ...d, stream_url: e.target.value })} /></Field>
+          <Button type="submit" size="lg">Simpan</Button>
+        </form>
+      </Panel>
+    </div>
+  );
+}
+
+function Cafe({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => Promise<void> }) {
+  const [floors, setFloors] = useState(s.cafe.floors);
+  const [a, setA] = useState(s.association);
+  const [v, setV] = useState(s.visits);
+  const n = (x: string) => Number(x) || 0;
+  return (
+    <form className="grid gap-4 xl:grid-cols-2" onSubmit={async (e) => { e.preventDefault(); await save({ cafe: { ...s.cafe, floors }, association: a, visits: v }); }}>
+      <Panel title="Lantai & kapasitas">
+        <div className="space-y-3">
+          {floors.map((f, i) => (
+            <Field key={f.floor} label={`Lantai ${f.floor} — kapasitas kursi`}>
+              <Input inputMode="numeric" value={f.capacity} onChange={(e) => setFloors(floors.map((x, j) => (j === i ? { ...x, capacity: n(e.target.value) } : x)))} />
+            </Field>
+          ))}
+          <Field label="Kunjungan selesai bila orang tidak terlihat (menit)" hint="Dipakai untuk mencatat jam pulang dari person tracking.">
+            <Input inputMode="numeric" value={v.exit_timeout_minutes} onChange={(e) => setV({ ...v, exit_timeout_minutes: n(e.target.value) })} />
+          </Field>
         </div>
+      </Panel>
+      <Panel title={<div><h2 className="font-semibold">Asosiasi identitas</h2><p className="text-xs text-muted-foreground">Menghubungkan Customer ID (wajah) dengan Track ID (kamera area). Kalibrasi di lokasi.</p></div>}>
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Area kasir di kamera area (piksel)</p>
+          <div className="grid grid-cols-4 gap-2">
+            {(["x1", "y1", "x2", "y2"] as const).map((k) => (
+              <Field key={k} label={k}><Input inputMode="numeric" value={a.roi[k]} onChange={(e) => setA({ ...a, roi: { ...a.roi, [k]: n(e.target.value) } })} /></Field>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Titik berdiri kasir x"><Input inputMode="numeric" value={a.anchor.x} onChange={(e) => setA({ ...a, anchor: { ...a.anchor, x: n(e.target.value) } })} /></Field>
+            <Field label="Titik berdiri kasir y"><Input inputMode="numeric" value={a.anchor.y} onChange={(e) => setA({ ...a, anchor: { ...a.anchor, y: n(e.target.value) } })} /></Field>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            <Field label="θ ambang"><Input inputMode="decimal" value={a.theta} onChange={(e) => setA({ ...a, theta: Number(e.target.value) })} /></Field>
+            <Field label="w spasial"><Input inputMode="decimal" value={a.weights.spatial} onChange={(e) => setA({ ...a, weights: { ...a.weights, spatial: Number(e.target.value) } })} /></Field>
+            <Field label="w kinematik"><Input inputMode="decimal" value={a.weights.kinematic} onChange={(e) => setA({ ...a, weights: { ...a.weights, kinematic: Number(e.target.value) } })} /></Field>
+            <Field label="w temporal"><Input inputMode="decimal" value={a.weights.temporal} onChange={(e) => setA({ ...a, weights: { ...a.weights, temporal: Number(e.target.value) } })} /></Field>
+          </div>
+          {Math.abs(a.weights.spatial + a.weights.kinematic + a.weights.temporal - 1) > 0.01 && (
+            <p className="text-sm text-warning">Jumlah bobot sebaiknya 1 (sekarang {(a.weights.spatial + a.weights.kinematic + a.weights.temporal).toFixed(2)}).</p>
+          )}
+        </div>
+      </Panel>
+      <div className="xl:col-span-2"><Button type="submit" size="lg">Simpan pengaturan</Button></div>
+    </form>
+  );
+}
 
-        {/* Info akun */}
-        <Card className="border border-border shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <User className="h-4 w-4" /> Informasi Akun
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/40">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-lg">
-                {user?.name?.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="font-bold text-foreground">{user?.name}</p>
-                <p className="text-sm text-muted-foreground">{user?.email}</p>
-                <Badge
-                  className={`mt-1 text-xs ${isOwner ? "bg-primary/10 text-primary border-primary/20" : "bg-success/10 text-success border-success/20"}`}
-                  variant="outline"
-                >
-                  {isOwner ? "👑 Owner" : "🧑‍💼 Kasir"}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Ganti password */}
-        <Card className="border border-border shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Lock className="h-4 w-4" /> Ganti Password
-            </CardTitle>
-            <CardDescription>Perbarui kata sandi akun Anda.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {passwordSuccess && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success border border-success/20">
-                <CheckCircle2 className="h-4 w-4" />
-                Password berhasil diperbarui!
-              </div>
-            )}
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">
-                  Password Baru
-                </label>
-                <Input
-                  id="input-password-baru"
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                />
-              </div>
-              <Button
-                id="btn-simpan-password"
-                type="submit"
-                disabled={passwordLoading || !password}
-                className="w-full"
-              >
-                {passwordLoading ? "Menyimpan..." : "Simpan Password"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Kebijakan Retensi Data Biometrik — Owner only (UU PDP No. 27/2022) */}
-        {isOwner && (
-          <Card className="border-2 border-primary/20 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base text-primary font-bold">
-                  <Fingerprint className="h-5 w-5 text-accent" /> Retensi Data Biometrik (Embedding)
-                </CardTitle>
-                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs">
-                  UU PDP No. 27/2022
-                </Badge>
-              </div>
-              <CardDescription>
-                Kebijakan masa simpan (Storage Limitation) vektor embedding biometrik wajah di basis data.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Metrik status embedding */}
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="p-3 rounded-xl bg-muted/40 border border-border text-center">
-                  <p className="text-xl font-bold text-primary">
-                    {retentionLoading ? "..." : retentionStatus?.total_embeddings ?? 0}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Total Embedding</p>
-                </div>
-                <div className="p-3 rounded-xl bg-muted/40 border border-border text-center">
-                  <p className="text-xl font-bold text-success">
-                    {retentionLoading ? "..." : retentionStatus?.total_customers_with_face ?? 0}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Pelanggan Aktif</p>
-                </div>
-                <div className="p-3 rounded-xl bg-warning/10 border border-warning/30 text-center">
-                  <p className="text-xl font-bold text-warning">
-                    {retentionLoading ? "..." : retentionStatus?.inactive_candidates_count ?? 0}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Kedaluwarsa</p>
-                </div>
-              </div>
-
-              {/* Kontrol Masa Retensi */}
-              <div className="space-y-2 pt-1">
-                <label className="block text-sm font-medium text-foreground">
-                  Masa Retensi Wajah Pelanggan Non-Aktif
-                </label>
-                <div className="flex gap-2">
-                  <Select value={retentionDays} onValueChange={setRetentionDays}>
-                    <SelectTrigger id="select-retensi-hari" className="flex-1">
-                      <SelectValue placeholder="Pilih batas waktu" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="30">30 Hari (Uji Coba Ketat)</SelectItem>
-                      <SelectItem value="90">90 Hari (Standar Rekomendasi)</SelectItem>
-                      <SelectItem value="180">180 Hari (6 Bulan)</SelectItem>
-                      <SelectItem value="365">365 Hari (1 Tahun)</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    id="btn-refresh-retensi"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => fetchRetentionStatus(retentionDays)}
-                    disabled={retentionLoading}
-                    title="Segarkan data retensi"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${retentionLoading ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Pelanggan yang tidak berkunjung dalam {retentionDays} hari akan dikategorikan kedaluwarsa.
-                </p>
-              </div>
-
-              {/* Banner feedback hasil cleanup */}
-              {cleanupResult && (
-                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-success/10 border border-success/30 text-xs text-success animate-in fade-in">
-                  <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                  <span>{cleanupResult}</span>
-                </div>
-              )}
-
-              {/* Tombol aksi pembersihan */}
-              <Button
-                id="btn-jalankan-pembersihan-retensi"
-                variant="outline"
-                className="w-full gap-2 border-warning/40 text-warning hover:bg-warning/10 font-bold"
-                onClick={handleExecuteCleanup}
-                disabled={cleanupLoading || (retentionStatus?.inactive_candidates_count ?? 0) === 0}
-              >
-                <Trash2 className={`h-4 w-4 ${cleanupLoading ? "animate-spin" : ""}`} />
-                {cleanupLoading
-                  ? "Membersihkan..."
-                  : `Bersihkan ${retentionStatus?.inactive_candidates_count ?? 0} Embedding Kedaluwarsa`}
-              </Button>
-
-              {/* Info Kepatuhan Hukum */}
-              <div className="rounded-lg bg-primary/5 border border-primary/15 p-3 text-xs text-muted-foreground space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-primary">
-                  <ShieldCheck className="h-4 w-4 text-success" />
-                  <span>Prinsip Pembatasan Penyimpanan (UU PDP Pasal 35 & GDPR)</span>
-                </div>
-                <p>
-                  Pembersihan retensi hanya menghapus data vektor biometrik wajah. Profil CRM dan riwayat
-                  transaksi penjualan tetap tersimpan aman tanpa data biometrik yang sensitif.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+function Privacy({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => Promise<void> }) {
+  const [days, setDays] = useState(s.privacy.retention_days);
+  const status = useApi<{ embeddings: number; customers_with_face: number; to_delete_customers: number; oldest_embedding: string | null }>(`/privacy/retention?days=${days}`);
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <Panel title={<div><h2 className="font-semibold">Retensi data wajah</h2><p className="text-xs text-muted-foreground">UU PDP No. 27/2022: data biometrik disimpan seperlunya.</p></div>} className="max-w-2xl">
+      <div className="space-y-4">
+        <Field label="Hapus data wajah pelanggan yang tidak berkunjung selama (hari)" hint="7–730 hari. Profil dan riwayat belanja tetap ada.">
+          <Input inputMode="numeric" value={days} onChange={(e) => setDays(Number(e.target.value.replace(/\D/g, "")) || 0)} className="max-w-40" />
+        </Field>
+        {status.loading ? <ListSkeleton rows={1} avatar={false} /> : status.error ? <ErrorState message={status.error} /> : status.data && (
+          <dl className="grid grid-cols-3 gap-3 rounded-xl bg-muted p-4 text-center text-sm">
+            <div><dt className="text-muted-foreground">Pelanggan berwajah</dt><dd className="num text-xl font-bold">{status.data.customers_with_face}</dd></div>
+            <div><dt className="text-muted-foreground">Akan dihapus</dt><dd className="num text-xl font-bold text-warning">{status.data.to_delete_customers}</dd></div>
+            <div><dt className="text-muted-foreground">Data tertua</dt><dd className="text-sm font-semibold">{status.data.oldest_embedding ? formatDate(status.data.oldest_embedding) : "–"}</dd></div>
+          </dl>
         )}
-
-        {/* Konfigurasi Kamera — Owner only */}
-        {isOwner && (
-          <Card className="border border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Camera className="h-4 w-4" /> Konfigurasi Kamera
-              </CardTitle>
-              <CardDescription>
-                Atur URL stream kamera face recognition. Kasir tidak bisa mengubah ini dari halaman Live.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-3 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground">
-                <p className="font-semibold text-foreground mb-1">💡 Cara Kerja</p>
-                <p>
-                  URL stream disimpan di perangkat ini (localStorage). Halaman Live akan otomatis menggunakan
-                  URL yang disimpan di sini. Default: <code className="font-mono">{DEFAULT_STREAM_URL}</code>
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">
-                  Stream URL Kamera
-                </label>
-                <Input
-                  id="input-stream-url"
-                  type="url"
-                  value={streamUrl}
-                  onChange={(e) => setStreamUrl(e.target.value)}
-                  placeholder="http://192.168.x.x:5001/video_feed"
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  id="btn-simpan-stream-url"
-                  onClick={handleSaveStreamUrl}
-                  className="flex-1 gap-2"
-                  disabled={!streamUrl.trim()}
-                >
-                  {streamUrlSaved ? (
-                    <><CheckCircle2 className="h-4 w-4" /> Tersimpan!</>
-                  ) : (
-                    "Simpan URL Kamera"
-                  )}
-                </Button>
-                <Button
-                  id="btn-reset-stream-url"
-                  variant="outline"
-                  onClick={handleResetStreamUrl}
-                  title="Reset ke URL default"
-                >
-                  Reset
-                </Button>
-                <Button
-                  id="btn-test-kamera"
-                  variant="outline"
-                  onClick={() => window.open(streamUrl, "_blank")}
-                  className="gap-1.5"
-                  title="Buka stream di tab baru untuk test"
-                >
-                  <ExternalLink className="h-4 w-4" /> Test
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Manajemen User — Owner only */}
-        {isOwner && (
-          <Card className="border border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Manajemen Pengguna</CardTitle>
-              <CardDescription>Tambah dan kelola akun kasir.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Kelola akses kasir yang dapat login ke sistem Cafe CRM.
-              </p>
-              <Button
-                id="btn-kelola-pengguna"
-                variant="outline"
-                onClick={() => router.push("/settings/users")}
-              >
-                Kelola Pengguna
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button size="lg" variant="outline" onClick={() => save({ privacy: { retention_days: days } })} disabled={days < 7 || days > 730}>Simpan masa retensi</Button>
+          <Button size="lg" variant="destructive" onClick={() => setConfirm(true)} disabled={!status.data?.to_delete_customers || days < 7}>Hapus sekarang</Button>
+        </div>
       </div>
-    </DashboardLayout>
+      <ConfirmDialog open={confirm} onOpenChange={setConfirm} title={`Hapus data wajah ${status.data?.to_delete_customers} pelanggan?`}
+        description={`Pelanggan yang tidak datang ${days} hari terakhir tidak akan dikenali otomatis lagi sampai didaftarkan ulang.`}
+        confirmLabel="Hapus data wajah"
+        onConfirm={async () => { try { const r = await api.post<{ deleted_customers: number }>("/privacy/retention", { days }); toast.success(`Data wajah ${r.data.deleted_customers} pelanggan dihapus`); status.reload(); } catch (e) { toast.error(errorMessage(e)); } }} />
+    </Panel>
+  );
+}
+
+function SettingsContent() {
+  const { isOwner } = useAuth();
+  const router = useRouter();
+  const tab = (useSearchParams().get("tab") as TabId) || "account";
+  const settings = useApi<AppSettings>(isOwner ? "/settings" : null);
+  const tabs = TABS.filter((t) => !t.owner || isOwner);
+  const active = tabs.some((t) => t.id === tab) ? tab : "account";
+
+  async function save(p: Partial<AppSettings>) {
+    try { await api.put("/settings", p); toast.success("Pengaturan disimpan"); settings.reload(); }
+    catch (e) { toast.error(errorMessage(e)); }
+  }
+  return (
+    <>
+      <PageHeader title="Pengaturan" />
+      {tabs.length > 1 && (
+        <div className="mb-5 flex gap-2 overflow-x-auto border-b" role="tablist">
+          {tabs.map((t) => (
+            <button key={t.id} role="tab" aria-selected={active === t.id} onClick={() => router.replace(`/settings?tab=${t.id}`)}
+              className={cn("flex h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold",
+                active === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+              <t.icon className="h-4 w-4" /> {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {active === "account" && <Account />}
+      {active !== "account" && (settings.loading ? <ListSkeleton rows={3} avatar={false} />
+        : settings.error || !settings.data ? <ErrorState message={settings.error ?? "Gagal memuat"} onRetry={settings.reload} />
+        : active === "devices" ? <Devices key="d" s={settings.data} save={save} />
+        : active === "cafe" ? <Cafe key="c" s={settings.data} save={save} />
+        : <Privacy key="p" s={settings.data} save={save} />)}
+    </>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <AppShell>
+      <Suspense><SettingsContent /></Suspense>
+    </AppShell>
   );
 }

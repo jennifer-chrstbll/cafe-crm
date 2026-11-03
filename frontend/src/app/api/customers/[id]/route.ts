@@ -1,62 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db, getSegment } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { db, GUEST_ID } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import { ApiError, body, isUuid, json, route } from "@/lib/server/http";
+import { customerContext } from "@/lib/server/customers";
 
-type Params = { params: Promise<{ id: string }> };
+export const dynamic = "force-dynamic";
 
-// GET /api/customers/[id]
-export async function GET(_req: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-    const supabase = db();
-
-    const { data: customers, error } = await supabase
-      .from("customers")
-      .select("customer_id, name, phone_number, email, gender, date_of_birth, notes, is_active, created_at")
-      .eq("customer_id", id)
-      .limit(1);
-
-    if (error || !customers || customers.length === 0) {
-      return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
-    }
-
-    const customer = customers[0];
-
-    const { count: visitCount } = await supabase
-      .from("visits")
-      .select("visit_id", { count: "exact", head: true })
-      .eq("customer_id", id);
-
-    const vc = visitCount ?? 0;
-
-    return NextResponse.json({
-      ...customer,
-      visit_count: vc,
-      segment: getSegment(vc),
-    });
-  } catch (e) {
-    console.error("[/api/customers/[id] GET]", e);
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
-  }
+async function idOf(ctx: { params: Promise<Record<string, string>> }) {
+  const { id } = await ctx.params;
+  if (!isUuid(id) || id === GUEST_ID) throw new ApiError(404, "Pelanggan tidak ditemukan.");
+  return id;
 }
 
-// PATCH /api/customers/[id] — update customer
-export async function PATCH(req: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-    const body = await req.json();
+export const GET = route(async (req: NextRequest, ctx) => {
+  await requireUser(req);
+  const c = await customerContext(await idOf(ctx));
+  if (!c) throw new ApiError(404, "Pelanggan tidak ditemukan.");
+  return json(c);
+});
 
-    const { data, error } = await db()
-      .from("customers")
-      .update(body)
-      .eq("customer_id", id)
-      .select()
-      .single();
+const EDITABLE = ["name", "phone_number", "email", "notes", "gender", "date_of_birth"] as const;
 
-    if (error) throw error;
-
-    return NextResponse.json(data);
-  } catch (e) {
-    console.error("[/api/customers/[id] PATCH]", e);
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+export const PATCH = route(async (req: NextRequest, ctx) => {
+  await requireUser(req);
+  const id = await idOf(ctx);
+  const b = await body<Record<string, unknown>>(req);
+  const patch: Record<string, unknown> = {};
+  for (const k of EDITABLE) {
+    if (k in b) patch[k] = typeof b[k] === "string" ? (b[k] as string).trim() || null : b[k];
   }
-}
+  if ("name" in patch && !patch.name) throw new ApiError(422, "Nama tidak boleh kosong.");
+  const { error } = await db().from("customers").update(patch).eq("customer_id", id);
+  if (error) {
+    if (error.message.includes("duplicate")) throw new ApiError(409, "Nomor HP sudah dipakai pelanggan lain.");
+    throw new Error(error.message);
+  }
+  return json({ ok: true });
+});
+
+/**
+ * Right to erasure (UU PDP): delete the face embeddings and personal data.
+ * Sales history stays for the cafe's bookkeeping but is no longer linked to a name.
+ */
+export const DELETE = route(async (req: NextRequest, ctx) => {
+  await requireUser(req, ["OWNER"]);
+  const id = await idOf(ctx);
+  const sb = db();
+  await sb.from("embeddings").delete().eq("customer_id", id);
+  const { error } = await sb.from("customers").update({
+    name: "Pelanggan dihapus", phone_number: null, email: null, notes: null, gender: null,
+    date_of_birth: null, is_active: false, consent_given: false,
+  }).eq("customer_id", id);
+  if (error) throw new Error(error.message);
+  return json({ ok: true });
+});

@@ -2,73 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens (see docs/UX_RATIONALE.md §3 for why each colour was chosen).
+ * Every text/background pair below meets WCAG 2.1 AA (>= 4.5:1).
+ *
+ *  background   warm paper #FAF8F5  - less glare than pure white on a bright counter iPad
+ *  primary      espresso   #704329  - brand + the ONE main action per screen (8.3:1 on white)
+ *  success      green      #1F7A45  - recognised customer, paid, online      (5.3:1)
+ *  warning      amber      #A7590C  - needs attention, not an error (unknown face, open tab) (5.1:1)
+ *  destructive  red        #C22E2E  - errors, offline, delete                (5.6:1)
+ *  info         blue       #1C5FB0  - neutral information, links             (6.4:1)
+ *  muted text   #645A54 (6.7:1); coloured text on its own 10% tint >= 4.5:1
+ */
 @layer base {
   :root {
-    --background: 40 30% 94%; /* #F5F1EA */
-    --foreground: 20 14% 4%;
-    --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 20 14% 4%;
+    --background: 36 33% 97%;
+    --foreground: 25 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 25 25% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 20 14% 4%;
-    --primary: 20 33% 27%; /* #5C3D2E */
+    --popover-foreground: 25 25% 12%;
+    --primary: 22 46% 30%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 26 40% 39%; /* #8B5E3C */
-    --secondary-foreground: 0 0% 100%;
-    --muted: 60 4.8% 95.9%;
-    --muted-foreground: 25 5.3% 44.7%;
-    --accent: 30 53% 64%; /* #D4A373 */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 2 76% 56%; /* #E53935 */
+    --secondary: 34 25% 92%;
+    --secondary-foreground: 25 25% 16%;
+    --muted: 34 22% 94%;
+    --muted-foreground: 25 9% 36%;
+    --accent: 32 55% 93%;
+    --accent-foreground: 22 46% 26%;
+    --destructive: 0 62% 47%;
     --destructive-foreground: 0 0% 100%;
-    --success: 122 39% 49%; /* #4CAF50 */
+    --success: 145 60% 30%;
     --success-foreground: 0 0% 100%;
-    --warning: 35 95% 50%; /* Amber — untuk status peringatan (belum bayar, hampir penuh) */
+    --warning: 30 87% 35%;
     --warning-foreground: 0 0% 100%;
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
-    --ring: 20 33% 27%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-  .dark {
-    --background: 20 14% 8%;
-    --foreground: 40 30% 94%;
-    --card: 20 14% 11%;
-    --card-foreground: 40 30% 94%;
-    --popover: 20 14% 11%;
-    --popover-foreground: 40 30% 94%;
-    --primary: 30 53% 64%; /* accent jadi primary di dark */
-    --primary-foreground: 20 14% 4%;
-    --secondary: 26 40% 39%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 20 14% 15%;
-    --muted-foreground: 25 10% 55%;
-    --accent: 20 33% 27%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 2 76% 56%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 122 39% 49%;
-    --success-foreground: 0 0% 100%;
-    --warning: 35 95% 50%;
-    --warning-foreground: 0 0% 100%;
-    --border: 20 14% 20%;
-    --input: 20 14% 20%;
-    --ring: 30 53% 64%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --info: 213 73% 40%;
+    --info-foreground: 0 0% 100%;
+    --border: 30 18% 87%;
+    --input: 30 16% 80%;
+    --ring: 22 46% 40%;
+    --radius: 0.75rem;
   }
 }
 
@@ -76,7 +49,32 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Visible keyboard focus everywhere (WCAG 2.4.7). */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  /* Respect users who turn animations off. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Money and counts line up in columns. */
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
   }
 }

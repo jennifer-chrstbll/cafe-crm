@@ -1,23 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import { ApiError, json, route } from "@/lib/server/http";
 
-export async function GET(req: NextRequest) {
-  const token = getTokenFromRequest(req);
-  if (!token) return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
+export const dynamic = "force-dynamic";
 
-  const payload = await verifyToken(token);
-  if (!payload) return NextResponse.json({ detail: "Token tidak valid" }, { status: 401 });
-
-  const { data: users } = await db()
+export const GET = route(async (req: NextRequest) => {
+  const s = await requireUser(req);
+  const { data } = await db()
     .from("users")
     .select("user_id, name, email, role, is_active, created_at")
-    .eq("user_id", payload.sub as string)
-    .limit(1);
-
-  if (!users || users.length === 0) {
-    return NextResponse.json({ detail: "User tidak ditemukan" }, { status: 404 });
-  }
-
-  return NextResponse.json(users[0]);
-}
+    .eq("user_id", s.sub)
+    .maybeSingle();
+  if (!data || data.is_active === false) throw new ApiError(401, "Akun tidak aktif.");
+  return json(data);
+});

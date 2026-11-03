@@ -1,90 +1,88 @@
 "use client";
 
-import { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import api from "@/services/api";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Coffee, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/app/bits";
+import { homeFor, useAuth } from "@/contexts/AuthContext";
+import { errorMessage } from "@/services/api";
 
-export default function LoginPage() {
+function LoginForm() {
+  const { login, user, isLoading } = useAuth();
+  const router = useRouter();
+  const next = useSearchParams().get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [show, setShow] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!isLoading && user) router.replace(next && next.startsWith("/") ? next : homeFor(user));
+  }, [isLoading, user, next, router]);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
-
+    setError(null);
+    setBusy(true);
     try {
-      const response = await api.post("/auth/login", { email, password });
-      login(response.data.access_token, {
-        user_id: response.data.user_id,
-        name: response.data.name,
-        email: response.data.email,
-        role: response.data.role,
-        is_active: true,
-        created_at: new Date().toISOString(),
-      });
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Login failed");
-    } finally {
-      setLoading(false);
+      const u = await login(email.trim(), password);
+      router.replace(next && next.startsWith("/") ? next : homeFor(u));
+    } catch (err) {
+      setError(errorMessage(err, "Gagal masuk."));
+      setBusy(false);
     }
-  };
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-primary">☕ Cafe CRM</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Login to your account</p>
+    <form onSubmit={submit} className="w-full max-w-sm space-y-5 rounded-2xl border bg-card p-8 shadow-sm" noValidate>
+      <div className="flex flex-col items-center gap-3 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+          <Coffee className="h-6 w-6" />
+        </span>
+        <div>
+          <h1 className="text-xl font-bold">Masuk ke Kafe CRM</h1>
+          <p className="text-sm text-muted-foreground">Gunakan akun kasir atau pemilik.</p>
         </div>
-
-        {error && (
-          <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              placeholder="owner@cafecrm.com"
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              placeholder="••••••••"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
       </div>
-    </div>
+
+      <Field label="Email" htmlFor="email">
+        <Input id="email" type="email" autoComplete="username" autoFocus required value={email}
+          onChange={(e) => setEmail(e.target.value)} aria-invalid={!!error} />
+      </Field>
+
+      <Field label="Kata sandi" htmlFor="password" error={capsLock ? "Caps Lock menyala" : null}>
+        <div className="relative">
+          <Input id="password" type={show ? "text" : "password"} autoComplete="current-password" required
+            value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={!!error} className="pr-12"
+            onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))} />
+          <button type="button" onClick={() => setShow((s) => !s)}
+            className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground"
+            aria-label={show ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}>
+            {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+        </div>
+      </Field>
+
+      {error && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">{error}</p>}
+
+      <Button type="submit" size="lg" className="w-full" disabled={busy || !email || !password}>
+        {busy ? <><Loader2 className="animate-spin" /> Memeriksa…</> : "Masuk"}
+      </Button>
+      <p className="text-center text-xs text-muted-foreground">Lupa kata sandi? Minta pemilik kafe meresetnya di menu Staf.</p>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-background p-4">
+      <Suspense>
+        <LoginForm />
+      </Suspense>
+    </main>
   );
 }

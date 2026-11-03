@@ -2,25 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { homeFor, useAuth } from "@/contexts/AuthContext";
+import { FullPageLoader } from "@/components/app/states";
 
 export default function Home() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
-
   useEffect(() => {
-    if (!isLoading) {
-      if (user) {
-        router.push("/dashboard");
-      } else {
-        router.push("/login");
-      }
-    }
+    if (!isLoading) router.replace(user ? homeFor(user) : "/login");
   }, [user, isLoading, router]);
-
-  return (
-    <div className="flex h-screen w-full items-center justify-center">
-      <div className="animate-pulse text-lg font-medium text-primary">Loading...</div>
-    </div>
-  );
+  return <FullPageLoader />;
 }

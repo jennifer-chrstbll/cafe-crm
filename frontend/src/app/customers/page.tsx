@@ -1,236 +1,96 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, Eye, Users } from "lucide-react";
-import { PaginationBar } from "@/components/ui/pagination-bar";
-import { CustomerAvatar } from "@/components/ui/customer-avatar";
-import api from "@/services/api";
-import { Customer } from "@/types";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, ScanFace, Search, UserPlus, Users } from "lucide-react";
+import { AppShell } from "@/components/app/AppShell";
+import { Avatar, PageHeader, SegmentBadge, Segmented } from "@/components/app/bits";
+import { EnrollDialog } from "@/components/app/EnrollDialog";
+import { EmptyState, ErrorState, ListSkeleton } from "@/components/app/states";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useApi } from "@/hooks/useApi";
+import { timeAgo } from "@/lib/format";
+import { CustomerListItem } from "@/types";
 
-const PAGE_SIZE = 20;
+const PAGE = 20;
 
-// Warna segment — sesuai konvensi brand (konsisten di seluruh aplikasi)
-const SEGMENT_STYLE: Record<string, string> = {
-  VIP: "bg-amber-100 text-amber-800 border-amber-300",
-  Regular: "bg-blue-100 text-blue-800 border-blue-300",
-  New: "bg-green-100 text-green-800 border-green-300",
-};
-
-const SEGMENT_EMOJI: Record<string, string> = {
-  VIP: "👑",
-  Regular: "⭐",
-  New: "🌱",
-};
-
-/**
- * Halaman Pelanggan — Daftar & pencarian pelanggan terdaftar.
- *
- * Pagination client-side karena:
- * - Jumlah pelanggan biasanya tidak sebesar log (bisa ratusan, bukan ribuan)
- * - Search/filter real-time lebih smooth dengan data di memory
- * - Tidak perlu endpoint baru di backend
- *
- * Sesuai rekomendasi: jika pelanggan tumbuh > 500, pertimbangkan server-side.
- */
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
   const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [term, setTerm] = useState("");
+  const [segment, setSegment] = useState<"" | "VIP" | "Regular" | "New">("");
+  const [sort, setSort] = useState<"recent" | "visits" | "name">("recent");
+  const [page, setPage] = useState(0);
+  const [enroll, setEnroll] = useState(false);
 
-  useEffect(() => {
-    async function fetchCustomers() {
-      try {
-        const response = await api.get("/customers");
-        setCustomers(Array.isArray(response.data) ? response.data : []);
-      } catch (error) {
-        console.error("Gagal mengambil data pelanggan:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchCustomers();
-  }, []);
-
-  // Reset ke halaman 1 saat search berubah
-  useEffect(() => {
-    setPage(0);
-  }, [search]);
-
-  // Filter berdasarkan search
-  const filtered = useMemo(() =>
-    customers.filter((c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.email && c.email.toLowerCase().includes(search.toLowerCase())) ||
-      (c.phone_number && c.phone_number.includes(search))
-    ),
-    [customers, search]
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  useEffect(() => { const id = setTimeout(() => { setTerm(search); setPage(0); }, 250); return () => clearTimeout(id); }, [search]);
+  const res = useApi<{ total: number; items: CustomerListItem[] }>(
+    `/customers?search=${encodeURIComponent(term)}&segment=${segment}&sort=${sort}&limit=${PAGE}&offset=${page * PAGE}`);
+  const pages = Math.max(1, Math.ceil((res.data?.total ?? 0) / PAGE));
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col gap-5 pb-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-              <Users className="h-7 w-7" /> Pelanggan
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {loading ? "Memuat..." : `${customers.length} pelanggan terdaftar`}
-              {search && ` · ${filtered.length} hasil pencarian`}
-            </p>
-          </div>
-        </div>
+    <AppShell>
+      <PageHeader title="Pelanggan" description={res.data ? `${res.data.total} pelanggan terdaftar` : "Cari dan lihat riwayat pelanggan"}
+        actions={<Button size="lg" onClick={() => setEnroll(true)}><UserPlus /> Daftarkan pelanggan</Button>} />
 
-        {/* Search bar */}
-        <div className="flex items-center gap-3 bg-card p-3 rounded-xl border border-border shadow-sm">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="search-pelanggan"
-              placeholder="Cari nama, email, atau nomor HP..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-              aria-label="Cari pelanggan"
-            />
-          </div>
-          {search && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSearch("")}
-              className="text-muted-foreground"
-            >
-              Hapus
-            </Button>
-          )}
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1 lg:max-w-sm">
+          <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nama atau nomor HP" className="pl-10" aria-label="Cari pelanggan" />
         </div>
-
-        {/* Tabel */}
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="font-semibold">Nama</TableHead>
-                <TableHead className="font-semibold">Kontak</TableHead>
-                <TableHead className="font-semibold whitespace-nowrap">Kunjungan</TableHead>
-                <TableHead className="font-semibold">Segmen</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="text-right font-semibold">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                [...Array(5)].map((_, i) => (
-                  <TableRow key={i}>
-                    {[...Array(6)].map((_, j) => (
-                      <TableCell key={j}>
-                        <div className="h-4 bg-muted animate-pulse rounded" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : paginated.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <Users className="h-8 w-8 opacity-30" />
-                      <p>
-                        {search
-                          ? `Tidak ada pelanggan yang cocok dengan "${search}".`
-                          : "Belum ada pelanggan terdaftar."}
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginated.map((customer) => (
-                  <TableRow key={customer.customer_id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <CustomerAvatar
-                          name={customer.name}
-                          size="sm"
-                          showBadge={false}
-                        />
-                        <span className="font-semibold">{customer.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm space-y-0.5">
-                        <div className="text-foreground">{customer.email || "—"}</div>
-                        <div className="text-muted-foreground text-xs">{customer.phone_number || "—"}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-bold text-foreground">{customer.visit_count || 0}</span>
-                      <span className="text-xs text-muted-foreground ml-1">kali</span>
-                    </TableCell>
-                    <TableCell>
-                      {customer.segment ? (
-                        <Badge variant="outline" className={`text-xs ${SEGMENT_STYLE[customer.segment] || ""}`}>
-                          {SEGMENT_EMOJI[customer.segment]} {customer.segment}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {customer.is_active ? (
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/20 font-bold text-xs">
-                          Aktif
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
-                          Nonaktif
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        id={`btn-lihat-customer-${customer.customer_id}`}
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push(`/customers/${customer.customer_id}`)}
-                        className="gap-1.5 text-muted-foreground hover:text-foreground"
-                      >
-                        <Eye className="h-4 w-4" /> Lihat
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Pagination */}
-        <PaginationBar
-          page={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          isLoading={loading}
-        />
+        <Segmented value={segment} onChange={(v) => { setSegment(v); setPage(0); }}
+          options={[{ value: "", label: "Semua" }, { value: "VIP", label: "VIP" }, { value: "Regular", label: "Langganan" }, { value: "New", label: "Baru" }]} />
+        <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Urutkan"
+          className="h-11 rounded-lg border border-input bg-card px-3 text-sm lg:ml-auto">
+          <option value="recent">Terakhir berkunjung</option>
+          <option value="visits">Kunjungan terbanyak</option>
+          <option value="name">Nama A–Z</option>
+        </select>
       </div>
-    </DashboardLayout>
+
+      {res.loading ? <ListSkeleton rows={8} />
+        : res.error ? <ErrorState message={res.error} onRetry={res.reload} />
+        : !res.data?.items.length ? (
+          <EmptyState icon={Users} title={term || segment ? "Tidak ada pelanggan yang cocok" : "Belum ada pelanggan"}
+            text={term || segment ? "Ubah kata kunci atau filter." : "Daftarkan pelanggan pertama dari halaman Kasir atau tombol di atas."}
+            action={!term && !segment && <Button onClick={() => setEnroll(true)}><UserPlus /> Daftarkan pelanggan</Button>} />
+        ) : (
+          <>
+            <ul className="divide-y rounded-xl border bg-card shadow-sm">
+              {res.data.items.map((c) => (
+                <li key={c.customer_id}>
+                  <Link href={`/customers/${c.customer_id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-muted/60">
+                    <Avatar name={c.name} />
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 truncate font-medium">
+                        {c.name}
+                        {c.has_face && <ScanFace className="h-4 w-4 shrink-0 text-success" aria-label="Wajah terdaftar" />}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">{c.phone_number ?? "Tanpa no. HP"}</p>
+                    </div>
+                    <div className="hidden text-right text-sm sm:block">
+                      <p className="num font-medium">{c.visit_count} kunjungan</p>
+                      <p className="text-muted-foreground">terakhir {timeAgo(c.last_visit)}</p>
+                    </div>
+                    <SegmentBadge segment={c.segment} />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {pages > 1 && (
+              <nav className="mt-4 flex items-center justify-center gap-2" aria-label="Halaman">
+                <Button variant="outline" onClick={() => setPage((p) => p - 1)} disabled={page === 0}><ChevronLeft /> Sebelumnya</Button>
+                <span className="num px-3 text-sm text-muted-foreground">{page + 1} / {pages}</span>
+                <Button variant="outline" onClick={() => setPage((p) => p + 1)} disabled={page + 1 >= pages}>Berikutnya <ChevronRight /></Button>
+              </nav>
+            )}
+          </>
+        )}
+
+      <EnrollDialog open={enroll} onOpenChange={setEnroll} onDone={(id) => router.push(`/customers/${id}`)} />
+    </AppShell>
   );
 }

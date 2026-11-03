@@ -1,43 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { db, num } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import { body, json, route } from "@/lib/server/http";
+import { validateMenu } from "@/lib/server/menu";
 
-export async function GET(_req: NextRequest) {
-  try {
-    const { data, error } = await db()
-      .from("menu")
-      .select("menu_id, name, description, category, price, is_active")
-      .eq("is_active", true)
-      .order("category")
-      .order("name");
+export const dynamic = "force-dynamic";
 
-    if (error) throw error;
-    return NextResponse.json(data ?? []);
-  } catch (e) {
-    console.error("[/api/menus GET]", e);
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
-  }
-}
+/** GET /api/menus            active items (POS)
+ *  GET /api/menus?all=1      every item incl. hidden ones (owner, menu management) */
+export const GET = route(async (req: NextRequest) => {
+  const s = await requireUser(req);
+  const all = req.nextUrl.searchParams.get("all") === "1" && s.role !== "CASHIER";
+  let q = db().from("menu").select("menu_id, name, description, category, price, is_active")
+    .order("category").order("name");
+  if (!all) q = q.eq("is_active", true);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return json((data ?? []).map((m) => ({ ...m, price: num(m.price) })));
+});
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { name, description, category, price } = body;
-
-    const validCategories = ["COFFEE", "NON_COFFEE", "FOOD", "DESSERT"];
-    if (!validCategories.includes(category)) {
-      return NextResponse.json({ detail: "Invalid category" }, { status: 400 });
-    }
-
-    const { data, error } = await db()
-      .from("menu")
-      .insert({ name, description, category, price, is_active: true })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return NextResponse.json(data, { status: 201 });
-  } catch (e) {
-    console.error("[/api/menus POST]", e);
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
-  }
-}
+export const POST = route(async (req: NextRequest) => {
+  await requireUser(req, ["OWNER"]);
+  const row = validateMenu(await body(req));
+  const { data, error } = await db().from("menu").insert({ ...row, is_active: true }).select().single();
+  if (error) throw new Error(error.message);
+  return json(data, 201);
+});
