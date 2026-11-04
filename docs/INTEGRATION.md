@@ -1,87 +1,88 @@
 # Integration contract: CRM · face recognition · person tracking
 
-Three repositories, one database (Supabase Postgres), no direct device-to-device calls.
+Three programs, one database (Supabase Postgres). The website never talks to a device
+directly: it runs in the cloud over HTTPS and cannot reach the cafe LAN. Devices only make
+outbound connections, so nothing needs port forwarding.
 
 ```
- ┌───────────────────────┐        ┌──────────────────────────┐        ┌────────────────────────────┐
- │ Arduino UNO Q          │        │ Supabase (Postgres)      │        │ Raspberry Pi 5             │
- │ cafe_facerec/uno_q     │ write  │                          │ write  │ cafe-persontrack           │
- │ SCRFD + MobileFaceNet  ├───────▶│ recognition_logs, visits │◀───────┤ YOLO + tracker + OSNet     │
- │ + FAISS, cashier cam   │        │ embeddings               │        │ cafe-area webcam (~3 m up) │
- │                        │◀───────┤ enrollment_requests      │        │                            │
- │                        │ poll   │ device_status            │        │ camera_tracks, occupancy,  │
- └──────────┬─────────────┘        │ camera_tracks, occupancy │        │ occupancy_logs,            │
-            │ POST /api/association/bind (x-device-key)       │        │ device_status              │
-            ▼                      └────────────▲─────────────┘        └────────────────────────────┘
- ┌───────────────────────┐                      │ service_role (server only)
- │ CRM (Next.js, Vercel)  ├──────────────────────┘
- │ cafe-crm/frontend      │   browser (iPad kasir, owner laptop) ⇄ /api/* (session cookie)
- └───────────────────────┘
+ CASHIER                                   CEILING (~3 m)                      ANYWHERE (back office)
+ face webcam ─USB-C hub─ Arduino UNO Q     area webcam(s) / IP CCTV ─────────── Raspberry Pi 5
+ cafe_facerec/uno_q/facerec_uno_q.py                                           DEPLOY/RaspberryPi5/cafe_pi.py
+   SCRFD + MobileFaceNet + vault + FAISS                                         YOLO11n + ByteTrack + OSNet
+        │  face event (LAN, HTTP :8765, X-Auth-Token)  ───────────────────────────▶ │
+        │                                                                           │
+        └──────────── Supabase (internet) ◀────────────────────────────────────────┘
+                              ▲
+               CRM website (Vercel)  ⇄  browser: iPad (cashier), laptop (owner)
 ```
 
-Why everything goes through the database: the CRM runs in the cloud over HTTPS and
-**cannot reach devices on the cafe LAN** (private IPs, mixed content). Devices only make
-outbound connections, so the setup works on any cafe Wi-Fi without port forwarding.
+| Link | Direction | How |
+|---|---|---|
+| Face recognised → body at the cashier | UNO Q → Pi | `POST http://<pi-ip>:8765/wajah` `{customer_id, score, label}` with `X-Auth-Token: FACE_TOKEN`. Pi uses the arrival time (LAN latency ms), so the boards' clocks do not matter for this |
+| Everything else | device ↔ Supabase | PostgreSQL (`DATABASE_URL`, Session pooler) |
+| Website | browser ↔ Vercel ↔ Supabase | session cookie; service_role key on the server only |
 
-## Tables and who writes them
+Migrations: run `database/004_integration.sql`, then `database/005_devices.sql` (both idempotent).
+
+## Tables
 
 | Table | Written by | Read by | Notes |
 |---|---|---|---|
-| `recognition_logs` | UNO Q | CRM | one row per *decision* (3-of-5 vote), not per frame; `is_correct` = cashier feedback |
-| `visits` | UNO Q (on recognition), CRM (first order) | all | active = `exit_time IS NULL` and opened < `max_open_hours`; closed by CRM exit-check |
-| `embeddings` | UNO Q (enrollment), CRM (delete only) | UNO Q | 512-d MobileFaceNet, `model_name = 'mobilefacenet'` |
-| `enrollment_requests` | CRM | UNO Q | `PENDING → DONE / FAILED`; UNO Q polls every 1.5 s |
-| `camera_tracks` | **Raspberry Pi** (+ CRM sets `customer_id`, `visit_id`) | CRM | one row per (`camera_id`, `raw_track_id`), see below |
-| `occupancy` | Raspberry Pi | CRM | current count per camera / floor (upsert) |
-| `occupancy_logs` | Raspberry Pi | CRM | history, e.g. one row per camera per minute |
-| `device_status` | UNO Q, Raspberry Pi | CRM | heartbeat every 30 s; offline after 90 s |
-| `app_settings` | CRM (owner) | CRM | camera IDs, cashier ROI, θ, weights, capacities, retention |
-| `customers`, `menu`, `orders`, `transactions`, `users` | CRM | CRM | `orders.transaction_id` always set |
+| `recognition_logs` | UNO Q | CRM | one row per decision of a face *session* (not per frame); known customers at most every 30 s |
+| `embeddings` | UNO Q (enrollment), CRM (delete) | UNO Q | 5 per customer, `model_name = 'mbf-scrfd-v2'`, vault-protected (rotated); other model names are ignored by the UNO Q and listed as "perlu daftar ulang" |
+| `enrollment_requests` | CRM | UNO Q | `PENDING → RUNNING → DONE / FAILED`; created only after consent |
+| `visits` | UNO Q, Pi, CRM | all | always through `get_or_create_visit()`; closed by the Pi (`close_visit`, `exit_reason`) or by the CRM fallback |
+| `camera_tracks` | Pi | CRM | one row per person per camera per Pi run (`raw_track_id = "<run>:<GT-id>"`), ~1 Hz; the Pi owns `customer_id`, `visit_id`, `association_*` |
+| `occupancy`, `occupancy_logs` | Pi | CRM | people per camera now (staff excluded) / once a minute |
+| `device_status` | UNO Q, Pi | CRM | heartbeat every 10 s; offline after 45 s; `info` = cameras, fps, gallery, open questions |
+| `device_commands` | CRM | UNO Q, Pi | `self_check`, `restart`, `reload_gallery` (owner); `assign`, `unassign` (staff); ignored when older than 2 min |
+| `device_frames` | CRM (`wanted_until`), devices (JPEG) | CRM | newest JPEG per camera, ~1/s, only while a page watches; overwritten, never a recording |
+| `app_settings` | CRM (owner) | CRM, devices | `camera_sources`, `camera_layout`, `devices.cashier_camera_id`, `visits`, `privacy` |
 
-Migration: run `database/004_integration.sql` once in Supabase SQL Editor (idempotent).
+### `app_settings.camera_sources`
+```json
+{ "uno-q-001": { "face":  { "source": "/dev/v4l/by-id/usb-...-video-index0" } },
+  "pi-001":    { "CAM_1": { "source": "/dev/v4l/by-id/usb-046d_0825_...-video-index0", "floor": 1, "enabled": true },
+                 "CAM_2": { "source": "rtsp://user:pass@192.168.1.50:554/stream1", "floor": 2 } } }
+```
+No entry = the device's default (`CAMERA_SOURCE` / `CAM_1_SOURCE`, "auto" = first free webcam).
+The UNO Q switches camera live; the Pi restarts itself (systemd) when its cameras change.
 
-## Raspberry Pi → `camera_tracks` (what the person-tracking code must write)
+### `app_settings.camera_layout` (fractions of the image, 0..1)
+```json
+{ "CAM_1": { "cashier": { "x": 0.27, "y": 0.47, "r": 0.09 },
+             "staff":      [ { "x1": 0.17, "y1": 0.25, "x2": 0.27, "y2": 0.42 } ],
+             "exit":       [ { "x1": 0.85, "y1": 0.30, "x2": 1.00, "y2": 1.00 } ],
+             "transition": [],
+             "updated_at": "2026-11-04T10:00:00Z" } }
+```
+`r` is the radius as a fraction of the image width. The Pi reloads it within 3 s.
 
-Upsert at ~1–2 Hz per active track (not every frame), keyed by `(camera_id, raw_track_id)`:
+## Face → body (on the Pi, `identity/face_binding.py`)
 
-| Column | Value |
-|---|---|
-| `camera_id` | e.g. `CAM_1` (must match *Pengaturan → Perangkat → ID kamera area* for the camera that sees the cashier) |
-| `raw_track_id` | the stable ID of the person (after ReID across cameras, the global ID) |
-| `global_id` | ReID identity shared across cameras (same as `raw_track_id` if only one ID is used) |
-| `pos_x`, `pos_y` | foot point (bottom-centre of the box) in that camera's pixels |
-| `velocity_x`, `velocity_y` | px/s, smoothed over ~0.5 s |
-| `status` | `ACTIVE` while seen, `LOST` when temporarily missing, `EXITED` when the person left through the exit zone |
-| `floor` | 1 or 2 |
-| `last_seen_at` | `NOW()` at each update |
+For every body *j* in the camera with the cashier point, at the frame the face event arrives:
+*d_j* = |foot − Q| / body height, *v_j* = speed / body height,
+*L_j* = exp(−d²/2·0.25²) · exp(−v²/2·0.6²), *P_j* = *L_j* / (Σ*L* + exp(−2.5²/2)).
+Bind if the body is inside the circle, not staff, not someone else's, *P* ≥ 0.85, and the same body
+wins 2 face events in a row. Otherwise the Pi publishes a question (`device_status.info.prompts`);
+the CRM shows it on *Kasir* and *Kamera*, and the cashier taps the person (`assign`).
 
-Never overwrite `customer_id`, `visit_id`, `association_*` — the CRM owns those columns.
+## Visit lifecycle
 
-## Identity association (Customer ID ↔ Track ID)
-
-1. The UNO Q confirms a customer (3 of 5 frames ≥ τ) and calls
-   `POST /api/association/bind {customer_id, face_timestamp}` with header `x-device-key: $DEVICE_API_KEY`.
-2. The CRM takes tracks of the area camera **inside the cashier ROI**, seen within 30 s, not bound
-   to another customer, and scores each:
-   `S = 0.5·exp(−d²/2·200²) + 0.3·exp(−v²/2·50²) + 0.2·exp(−Δt²/2·3²)`
-   (d = distance to the cashier anchor point, v = speed, Δt = time gap; values in *Pengaturan*).
-3. `S ≥ θ (0.60)` **and** best − second ≥ 0.10 → bound automatically (`association_mode = AUTO`),
-   `visits.track_id_aktif` set. Otherwise (`LOW_SCORE`, `AMBIGUOUS` queue, `NO_CANDIDATES`)
-   the cashier confirms via `/api/association/candidates` + `/api/association/confirm` (`MANUAL`).
-4. When that track becomes `EXITED` or is not seen for `exit_timeout_minutes`, the CRM closes the
-   visit with `exit_time = last_seen_at` → visit duration.
-
-## HTTP endpoints for devices
-
-| Endpoint | Auth | Caller |
-|---|---|---|
-| `POST /api/association/bind` | `x-device-key` | UNO Q |
-| `POST /api/visits/exit-check` | `x-device-key` | Raspberry Pi (optional, after marking tracks `EXITED`) |
+1. UNO Q recognises the customer → `get_or_create_visit(customer)`.
+2. Pi binds the face to a body → the same function (returns that visit), `entry_time` moved back
+   to when that body was first seen (the door), `track_id_aktif` set.
+3. The body is lost and not recovered → Pi `close_visit(exit = last seen, reason = EXIT_ZONE`
+   if last seen in a door area, else `LOST`). Coming back within 30 min reopens the same visit.
+4. Cashier un-assigns a wrong body → the visit is kept if the customer was recognised or ordered,
+   otherwise deleted (it only came from the wrong tap).
+5. Fallback in the CRM: newest track of the visit silent for `exit_timeout_minutes` → `TIMEOUT`;
+   open longer than `max_open_hours` → closed at the last order. Walk-in guests: `PAID`.
 
 ## Environment variables
 
-| Where | Variable |
+| Where | Variables |
 |---|---|
-| Vercel (CRM) | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `DEVICE_API_KEY` |
-| UNO Q `uno_q/.env` | `DATABASE_URL`, `CAMERA_ID`, `CRM_URL`, `DEVICE_API_KEY`, recognition parameters |
-| Raspberry Pi | `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` (or `DATABASE_URL`), `CAMERA_ID`, `FLOOR` |
+| Vercel (CRM) | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (≥ 32 chars). `DEVICE_API_KEY` only for `POST /api/visits/exit-check` |
+| UNO Q `.env` | `DATABASE_URL`, `CAMERA_ID` (= CRM "ID kamera kasir"), `VAULT_KEY` (back it up), `PI_FACE_URL`, `FACE_TOKEN` |
+| Pi `.env` | `DATABASE_URL`, `PI_DEVICE_ID`, `FACE_TOKEN` (same as UNO Q), `CAM_1_SOURCE` (until chosen in the CRM) |

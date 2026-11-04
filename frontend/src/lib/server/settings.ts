@@ -2,28 +2,15 @@ import { db } from "../db";
 
 export interface AppSettings {
   cafe: { name: string; floors: { floor: number; capacity: number }[] };
-  devices: { cashier_camera_id: string; area_camera_id: string; stream_url: string };
-  association: {
-    roi: { x1: number; y1: number; x2: number; y2: number };
-    anchor: { x: number; y: number };
-    theta: number;
-    weights: { spatial: number; kinematic: number; temporal: number };
-    sigma: { spatial: number; kinematic: number; temporal: number };
-  };
+  /** cashier_camera_id = CAMERA_ID of the UNO Q (enrollment requests and the Kasir screen use it). */
+  devices: { cashier_camera_id: string };
   visits: { exit_timeout_minutes: number; max_open_hours: number };
   privacy: { retention_days: number };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   cafe: { name: "Café Lounge Gedung B", floors: [{ floor: 1, capacity: 20 }, { floor: 2, capacity: 25 }] },
-  devices: { cashier_camera_id: "uno-q-001", area_camera_id: "CAM_1", stream_url: "http://192.168.18.80:5001/video_feed" },
-  association: {
-    roi: { x1: 0, y1: 0, x2: 1280, y2: 720 },
-    anchor: { x: 640, y: 360 },
-    theta: 0.6,
-    weights: { spatial: 0.5, kinematic: 0.3, temporal: 0.2 },
-    sigma: { spatial: 200, kinematic: 50, temporal: 3 },
-  },
+  devices: { cashier_camera_id: "uno-q-001" },
   visits: { exit_timeout_minutes: 10, max_open_hours: 6 },
   privacy: { retention_days: 90 },
 };
@@ -40,7 +27,11 @@ export async function getSettings(fresh = false): Promise<AppSettings> {
   if (!error) {
     for (const row of data ?? []) {
       const k = row.key as keyof AppSettings;
-      if (k in merged) (merged as unknown as Record<string, unknown>)[k] = { ...merged[k], ...row.value };
+      if (k in merged) {
+        const known = Object.keys(DEFAULT_SETTINGS[k]);
+        const value = Object.fromEntries(Object.entries(row.value ?? {}).filter(([f]) => known.includes(f)));
+        (merged as unknown as Record<string, unknown>)[k] = { ...merged[k], ...value };
+      }
     }
   }
   cache = { at: Date.now(), value: merged };

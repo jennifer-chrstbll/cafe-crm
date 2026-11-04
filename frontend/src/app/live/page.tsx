@@ -1,72 +1,177 @@
 "use client";
 
-import { useState } from "react";
-import { RefreshCw, VideoOff, Wifi } from "lucide-react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { MousePointerClick, UserRoundCheck, UserX, Video, X } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
-import { PageHeader, Panel, Pill } from "@/components/app/bits";
+import { PageHeader, Panel, Pill, Segmented } from "@/components/app/bits";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
+import { LiveFrame } from "@/components/app/LiveFrame";
+import { EmptyState, ErrorState, ListSkeleton } from "@/components/app/states";
+import { CustomerPicker } from "@/components/pos/CustomerPicker";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/useApi";
-import { timeAgo } from "@/lib/format";
-import { AppSettings, Device, Station } from "@/types";
+import { useDeviceCommand } from "@/hooks/useDeviceCommand";
+import { errorMessage } from "@/services/api";
+import { CamerasResponse, FramePerson, Station, TrackingPrompt } from "@/types";
+
+type Target = { customer_id: string; name: string };
 
 /**
- * Camera check for staff: is the cashier camera on, and what does it see? Recognition itself
- * is shown on the Kasir page; this page exists for troubleshooting and positioning the camera.
- * The video comes straight from the UNO Q on the cafe LAN and is never stored.
+ * Kamera (cashier + owner): what the cameras see, and manual identity.
+ * When the Raspberry Pi is not sure which person at the cashier belongs to the face the
+ * UNO Q recognised, it asks here; the cashier taps the person (2 taps, Fitts: large targets).
+ * Video is never recorded: frames are only sent while this page is open.
  */
-export default function LivePage() {
-  const settings = useApi<AppSettings>("/settings");
-  const devices = useApi<Device[]>("/devices", { interval: 10_000 });
-  const station = useApi<Station>("/station", { interval: 2000 });
-  const [failed, setFailed] = useState(false);
-  const [nonce, setNonce] = useState(0);
-  const url = settings.data?.devices.stream_url;
-  const cam = (devices.data ?? []).find((d) => d.kind === "facerec");
-  const mixed = typeof window !== "undefined" && window.location.protocol === "https:" && url?.startsWith("http:");
-  const st = station.data;
+function LiveContent() {
+  const params = useSearchParams();
+  const cams = useApi<CamerasResponse>("/cameras", { interval: 15_000 });
+  const station = useApi<Station>("/station", { interval: 3000 });
+  const list = useMemo(() => (cams.data?.cameras ?? []).slice().sort((a, b) =>
+    a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind === "area" ? -1 : 1), [cams.data]);
+  const [key, setKey] = useState<string | null>(null);
+  const cam = list.find((c) => c.key === key) ?? list[0] ?? null;
+  const [selected, setSelected] = useState<FramePerson | null>(null);
+  const [target, setTarget] = useState<Target | null>(null);        // customer waiting for a body
+  const [picker, setPicker] = useState(false);
+  const [confirm, setConfirm] = useState<{ person: FramePerson; customer: Target } | null>(null);
+  const [unassign, setUnassign] = useState<FramePerson | null>(null);
+  const { run, busy } = useDeviceCommand();
+  const prompts: TrackingPrompt[] = station.data?.tracking_prompts ?? [];
+
+  useEffect(() => {
+    const cid = params.get("prompt");
+    const p = prompts.find((x) => x.customer_id === cid);
+    if (p && !target) {
+      setTarget({ customer_id: p.customer_id, name: p.name || "pelanggan" });
+      const c = list.find((x) => x.device_id === p.device_id && x.camera === p.camera_id);
+      if (c) setKey(c.key);
+    }
+  }, [params, prompts, target, list]);
+
+  async function assign(person: FramePerson, customer: Target) {
+    if (!cam) return;
+    try {
+      const r = await run(cam.device_id, "assign", { track_id: person.id, customer_id: customer.customer_id });
+      if (r.status === "DONE") { toast.success(`${customer.name} dipasang. Nama ikut orang itu sampai ia pulang.`); setTarget(null); setSelected(null); }
+      else toast.error(r.message ?? "Gagal memasang identitas.");
+    } catch (e) { toast.error(errorMessage(e)); }
+  }
+
+  async function release(person: FramePerson) {
+    if (!cam) return;
+    try {
+      const r = await run(cam.device_id, "unassign", { track_id: person.id, customer_id: person.customer_id });
+      if (r.status === "DONE") { toast.success("Identitas dilepas dari orang itu."); setSelected(null); }
+      else toast.error(r.message ?? "Gagal melepas identitas.");
+    } catch (e) { toast.error(errorMessage(e)); }
+  }
+
+  function onPerson(p: FramePerson) {
+    if (target) { setConfirm({ person: p, customer: target }); return; }
+    setSelected(p);
+  }
+
+  if (cams.loading) return <ListSkeleton rows={3} avatar={false} />;
+  if (cams.error) return <ErrorState message={cams.error} onRetry={cams.reload} />;
+  if (!cam) {
+    return <EmptyState icon={Video} title="Belum ada kamera yang terhubung"
+      text="Nyalakan Raspberry Pi (kamera area) dan Arduino UNO Q (kamera wajah). Kamera muncul di sini setelah perangkat online." />;
+  }
+  const area = cam.kind === "area";
 
   return (
-    <AppShell>
-      <PageHeader title="Kamera kasir" description="Cek posisi kamera dan status pengenalan" />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="overflow-hidden rounded-xl border bg-black shadow-sm">
-          {url && !failed && !mixed ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={nonce} src={url} alt="Video langsung kamera kasir" className="aspect-video w-full object-contain" onError={() => setFailed(true)} />
-          ) : (
-            <div className="flex aspect-video flex-col items-center justify-center gap-3 p-6 text-center text-white/90">
-              <VideoOff className="h-10 w-10" />
-              <p className="font-semibold">Video tidak dapat ditampilkan</p>
-              <p className="max-w-md text-sm text-white/70">
-                {mixed ? "Video kamera hanya bisa dibuka dari jaringan Wi-Fi kafe lewat alamat lokal (http). Pengenalan wajah tetap berjalan normal."
-                  : "Pastikan perangkat ini terhubung ke Wi-Fi kafe dan kamera kasir menyala."}
-              </p>
-              {!mixed && <Button variant="secondary" onClick={() => { setFailed(false); setNonce((n) => n + 1); }}><RefreshCw /> Coba lagi</Button>}
-            </div>
-          )}
-        </div>
-        <div className="space-y-4">
-          <Panel title="Status">
-            <dl className="space-y-3 text-sm">
-              <div className="flex items-center justify-between"><dt className="text-muted-foreground">Kamera kasir</dt>
-                <dd>{cam ? <Pill tone={cam.online ? "success" : "danger"}>{cam.online ? "Online" : `Offline ${timeAgo(cam.last_seen_at)}`}</Pill> : <Pill tone="neutral">Belum terhubung</Pill>}</dd></div>
-              {cam?.online && typeof cam.info?.fps === "number" && (
-                <div className="flex justify-between"><dt className="text-muted-foreground">Kecepatan</dt><dd className="num">{(cam.info.fps as number).toFixed(1)} FPS</dd></div>
-              )}
-              <div className="flex items-center justify-between"><dt className="text-muted-foreground">Di depan kamera</dt>
-                <dd>{!st ? "…" : st.state === "known" ? <Pill tone="success">{st.customer.name}</Pill> : st.state === "unknown" ? <Pill tone="warning">Wajah baru</Pill> : <span className="text-muted-foreground">Tidak ada</span>}</dd></div>
-            </dl>
-          </Panel>
-          <Panel title="Tips posisi kamera">
-            <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-              <li>Setinggi wajah, 0,5–1,5 m dari pelanggan yang membayar.</li>
-              <li>Hindari cahaya terang tepat di belakang pelanggan.</li>
-              <li>Kotak abu-abu “move closer” berarti wajah terlalu jauh.</li>
-            </ul>
-            <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"><Wifi className="h-3.5 w-3.5" /> Video tidak direkam atau disimpan.</p>
-          </Panel>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+      <div className="space-y-3">
+        {list.length > 1 && (
+          <Segmented value={cam.key} onChange={(v) => { setKey(v); setSelected(null); }}
+            options={list.map((c) => ({ value: c.key, label: c.label }))} />
+        )}
+        {target && area && (
+          <div role="status" className="flex items-center gap-3 rounded-xl border-2 border-primary bg-primary/10 p-3 text-sm">
+            <MousePointerClick className="h-6 w-6 shrink-0 text-primary" />
+            <p className="flex-1"><b>Ketuk orang yang sedang membayar</b> untuk memasang nama <b>{target.name}</b>.</p>
+            <Button variant="ghost" size="sm" onClick={() => setTarget(null)} aria-label="Batal"><X /></Button>
+          </div>
+        )}
+        <LiveFrame cameraKey={cam.key} layout={area ? cams.data?.layout?.[cam.camera] : null} showPeople={area}
+          selectedId={selected?.id} onPerson={area ? onPerson : undefined} />
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          {area ? (<>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-success" />Dikenali</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-info" />Belum dikenali</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-warning" />Staf</span>
+            <span>✓ = dipasang manual · Video tidak direkam.</span>
+          </>) : <span>Kamera wajah di kasir. Video tidak direkam.</span>}
         </div>
       </div>
+
+      <div className="space-y-4">
+        <Panel title={`Perlu konfirmasi${prompts.length ? ` (${prompts.length})` : ""}`}>
+          {prompts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Tidak ada. Sistem bertanya di sini bila tidak yakin siapa orang di kasir.</p>
+          ) : (
+            <ul className="space-y-2">
+              {prompts.map((p) => (
+                <li key={p.customer_id} className="rounded-lg border p-3 text-sm">
+                  <p className="font-semibold">{p.name || "Pelanggan"}</p>
+                  <p className="text-muted-foreground">{p.reason}</p>
+                  <Button className="mt-2 w-full" size="lg" onClick={() => {
+                    setTarget({ customer_id: p.customer_id, name: p.name || "pelanggan" });
+                    const c = list.find((x) => x.device_id === p.device_id && x.camera === p.camera_id);
+                    if (c) setKey(c.key);
+                  }}><MousePointerClick /> Pilih orangnya</Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        {area && (
+          <Panel title="Orang yang dipilih">
+            {!selected ? (
+              <p className="text-sm text-muted-foreground">Ketuk kotak seseorang di gambar untuk memasang atau melepas nama.</p>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <p>
+                  {selected.staff ? <Pill tone="warning">Staf</Pill>
+                    : selected.customer_id ? <Pill tone="success">{selected.name || "Pelanggan"}{selected.mode === "MANUAL" ? " · manual" : ""}</Pill>
+                    : <Pill tone="info">Belum dikenali</Pill>}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="lg" onClick={() => setPicker(true)} disabled={!!busy}><UserRoundCheck /> {selected.customer_id ? "Ganti pelanggan" : "Pasang pelanggan"}</Button>
+                  {selected.customer_id && (
+                    <Button size="lg" variant="outline" onClick={() => setUnassign(selected)} disabled={!!busy}><UserX /> Bukan dia</Button>
+                  )}
+                </div>
+                {selected.staff && <p className="text-muted-foreground">Ditandai staf karena berdiri di area staf. Memasang pelanggan akan mencabut tanda staf.</p>}
+              </div>
+            )}
+          </Panel>
+        )}
+      </div>
+
+      <CustomerPicker open={picker} onOpenChange={setPicker}
+        onPick={(c) => selected && setConfirm({ person: selected, customer: { customer_id: c.customer_id, name: c.name } })}
+        onGuest={() => toast.info("Tamu tidak dilacak per nama.")} />
+      <ConfirmDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)} destructive={false}
+        title={`Pasang ${confirm?.customer.name ?? ""} pada orang ini?`}
+        description="Nama akan ikut orang ini di semua kamera sampai ia pulang. Lama kunjungan dihitung dari saat orang ini masuk."
+        confirmLabel="Pasang nama" onConfirm={async () => { if (confirm) await assign(confirm.person, confirm.customer); }} />
+      <ConfirmDialog open={!!unassign} onOpenChange={(o) => !o && setUnassign(null)}
+        title={`Lepas nama ${unassign?.name || "pelanggan"} dari orang ini?`}
+        description="Pakai bila nama menempel pada orang yang salah. Kunjungan pelanggan tetap tercatat bila ia memang datang."
+        confirmLabel="Lepas nama" onConfirm={async () => { if (unassign) await release(unassign); }} />
+    </div>
+  );
+}
+
+export default function LivePage() {
+  return (
+    <AppShell>
+      <PageHeader title="Kamera" description="Lihat kamera dan pasang nama pelanggan pada orang yang tepat" />
+      <Suspense fallback={<ListSkeleton rows={3} avatar={false} />}><LiveContent /></Suspense>
     </AppShell>
   );
 }

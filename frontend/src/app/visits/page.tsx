@@ -10,9 +10,14 @@ import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/useApi";
 import { formatDateTime, formatDuration, formatTime } from "@/lib/format";
 
+/** How a visit ended (visits.exit_reason, migration 005). */
+const EXIT_LABEL: Record<string, string> = {
+  EXIT_ZONE: "lewat pintu", LOST: "hilang dari kamera", TIMEOUT: "otomatis (tak terlihat)", MANUAL: "ditutup kasir", PAID: "tamu, dibayar",
+};
+
 interface V {
   visit_id: string; customer_id: string; name: string; entry_time: string; exit_time: string | null;
-  duration_minutes: number | null; track_id: string | null; association_score: number | null; association_mode: string | null;
+  duration_minutes: number | null; track_id: string | null; association_score: number | null; association_mode: string | null; exit_reason?: string | null;
 }
 const PAGE = 25;
 
@@ -47,7 +52,12 @@ export default function VisitsPage() {
                     <tr key={v.visit_id} className="hover:bg-muted/40">
                       <td className="px-4 py-3 font-medium"><Link href={`/customers/${v.customer_id}`} className="hover:underline">{v.name}</Link></td>
                       <td className="num px-4 py-3">{range === "today" ? formatTime(v.entry_time) : formatDateTime(v.entry_time)}</td>
-                      <td className="num px-4 py-3">{v.exit_time ? formatTime(v.exit_time) : <Pill tone="success">Di kafe</Pill>}</td>
+                      <td className="num px-4 py-3">{v.exit_time ? (
+                        <span className="flex flex-col">
+                          {formatTime(v.exit_time)}
+                          {v.exit_reason && <span className="text-xs text-muted-foreground">{EXIT_LABEL[v.exit_reason] ?? v.exit_reason}</span>}
+                        </span>
+                      ) : <Pill tone="success">Di kafe</Pill>}</td>
                       <td className="num px-4 py-3">{formatDuration(v.duration_minutes)}</td>
                       <td className="px-4 py-3">
                         {v.track_id ? (

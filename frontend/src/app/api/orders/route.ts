@@ -92,7 +92,7 @@ export const POST = route(async (req: NextRequest) => {
   const { data: all } = await sb.from("orders").select("subtotal").eq("transaction_id", txId);
   const total = (all ?? []).reduce((s, o) => s + num(o.subtotal), 0);
   await sb.from("transactions").update({ total_amount: total }).eq("transaction_id", txId);
-  if (isGuest && mode === "pay_now") await closeVisit(visit.visit_id, now);
+  if (isGuest && mode === "pay_now") await closeVisit(visit.visit_id, now, "PAID");
   invalidateRecommendations();
 
   return json({

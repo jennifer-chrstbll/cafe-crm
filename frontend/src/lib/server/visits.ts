@@ -4,16 +4,20 @@ import { minutesBetween } from "./time";
 
 /**
  * Visit lifecycle (one row = one stay in the cafe)
- *  - opened by the UNO Q when a customer is recognised, or by the first order
+ *  - opened by the UNO Q when a customer is recognised, by the Raspberry Pi when the
+ *    customer is bound to a body, or by the first order -- all three use the same
+ *    database function get_or_create_visit() (migration 005), so they never create two
  *  - "active" = exit_time IS NULL and opened less than max_open_hours ago
- *  - closed when the bound person-tracking track ends (EXITED / not seen for
- *    exit_timeout_minutes), or after max_open_hours at the time of the last order
+ *  - closed by the Raspberry Pi when the person leaves (door area or lost), or here as a
+ *    fallback when the tracker went quiet (exit_timeout_minutes) or after max_open_hours
  */
 export interface ActiveVisit {
   visit_id: string;
   entry_time: string;
   track_id_aktif: string | null;
 }
+
+const VISIT_REOPEN_MIN = 30;   // same as VISIT_REOPEN_MIN on the devices
 
 export async function getActiveVisit(customerId: string): Promise<ActiveVisit | null> {
   if (customerId === GUEST_ID) return null; // every walk-in order is its own visit
@@ -32,9 +36,23 @@ export async function getActiveVisit(customerId: string): Promise<ActiveVisit | 
 }
 
 export async function getOrCreateActiveVisit(customerId: string): Promise<ActiveVisit> {
-  const open = await getActiveVisit(customerId);
-  if (open) return open;
-  const { data, error } = await db()
+  const s = await getSettings();
+  const sb = db();
+  if (customerId !== GUEST_ID) {
+    const { data: vid, error } = await sb.rpc("get_or_create_visit", {
+      p_customer: customerId, p_max_open_hours: s.visits.max_open_hours, p_reopen_minutes: VISIT_REOPEN_MIN,
+    });
+    if (!error && vid) {
+      const { data, error: e2 } = await sb.from("visits").select("visit_id, entry_time, track_id_aktif")
+        .eq("visit_id", vid as string).single();
+      if (e2) throw new Error(e2.message);
+      return data;
+    }
+    // Migration 005 not applied yet: fall back to the plain rule below.
+    const open = await getActiveVisit(customerId);
+    if (open) return open;
+  }
+  const { data, error } = await sb
     .from("visits")
     .insert({ customer_id: customerId, entry_time: new Date().toISOString() })
     .select("visit_id, entry_time, track_id_aktif")
@@ -43,11 +61,14 @@ export async function getOrCreateActiveVisit(customerId: string): Promise<Active
   return data;
 }
 
-export async function closeVisit(visitId: string, exitTime: string) {
-  const { data } = await db().from("visits").select("entry_time").eq("visit_id", visitId).is("exit_time", null).single();
+export async function closeVisit(visitId: string, exitTime: string, reason = "TIMEOUT") {
+  const sb = db();
+  const { data: ok, error } = await sb.rpc("close_visit", { p_visit: visitId, p_exit: exitTime, p_reason: reason });
+  if (!error) return ok === true;
+  const { data } = await sb.from("visits").select("entry_time").eq("visit_id", visitId).is("exit_time", null).single();
   if (!data) return false;
   const exit = new Date(Math.max(new Date(exitTime).getTime(), new Date(data.entry_time).getTime())).toISOString();
-  await db()
+  await sb
     .from("visits")
     .update({ exit_time: exit, duration_minutes: minutesBetween(data.entry_time, exit) })
     .eq("visit_id", visitId)
@@ -57,7 +78,7 @@ export async function closeVisit(visitId: string, exitTime: string) {
 
 let lastRun = 0;
 
-/** Closes visits whose person left. Cheap; throttled to once a minute per server instance. */
+/** Fallback closing of visits whose person left. Throttled to once a minute per server instance. */
 export async function closeStaleVisits(force = false): Promise<number> {
   if (!force && Date.now() - lastRun < 60_000) return 0;
   lastRun = Date.now();
@@ -65,17 +86,26 @@ export async function closeStaleVisits(force = false): Promise<number> {
   const sb = db();
   let closed = 0;
 
-  // 1) The tracked person left the cafe.
-  const lostBefore = new Date(Date.now() - s.visits.exit_timeout_minutes * 60_000).toISOString();
-  const { data: ended } = await sb
+  // 1) The tracked person left: judge each open visit by its NEWEST track only. A visit
+  //    collects several tracks (ID splits, camera changes, Pi restarts); an old track that
+  //    stopped long ago must not close a visit whose person is still being tracked.
+  const lostBefore = Date.now() - s.visits.exit_timeout_minutes * 60_000;
+  const { data: tracks } = await sb
     .from("camera_tracks")
     .select("visit_id, last_seen_at, status, visits!inner(exit_time)")
     .not("visit_id", "is", null)
     .is("visits.exit_time", null)
-    .or(`status.eq.EXITED,last_seen_at.lt.${lostBefore}`)
-    .limit(200);
-  for (const t of ended ?? []) {
-    if (t.visit_id && (await closeVisit(t.visit_id, t.last_seen_at))) closed++;
+    .order("last_seen_at", { ascending: false })
+    .limit(1000);
+  const newest = new Map<string, { last_seen_at: string; status: string }>();
+  for (const t of tracks ?? []) {
+    if (t.visit_id && !newest.has(t.visit_id)) newest.set(t.visit_id, { last_seen_at: t.last_seen_at, status: t.status });
+  }
+  for (const [visitId, t] of newest) {
+    const gone = new Date(t.last_seen_at).getTime() < lostBefore;
+    if ((t.status === "EXITED" || gone) && (await closeVisit(visitId, t.last_seen_at, t.status === "EXITED" ? "EXIT_ZONE" : "TIMEOUT"))) {
+      closed++;
+    }
   }
 
   // 2) Open far too long (no track bound, or the tracker was offline): close at the last order.
@@ -93,7 +123,7 @@ export async function closeStaleVisits(force = false): Promise<number> {
       .eq("visit_id", v.visit_id)
       .order("created_at", { ascending: false })
       .limit(1);
-    if (await closeVisit(v.visit_id, last?.[0]?.created_at ?? v.entry_time)) closed++;
+    if (await closeVisit(v.visit_id, last?.[0]?.created_at ?? v.entry_time, "TIMEOUT")) closed++;
   }
   return closed;
 }

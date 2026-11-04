@@ -3,6 +3,7 @@ import { db, GUEST_ID } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { ApiError, body, isUuid, json, route } from "@/lib/server/http";
 import { customerContext } from "@/lib/server/customers";
+import { requestGalleryReload } from "@/lib/server/devices";
 
 export const dynamic = "force-dynamic";
 
@@ -52,5 +53,6 @@ export const DELETE = route(async (req: NextRequest, ctx) => {
     date_of_birth: null, is_active: false, consent_given: false,
   }).eq("customer_id", id);
   if (error) throw new Error(error.message);
+  await requestGalleryReload();
   return json({ ok: true });
 });

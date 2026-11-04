@@ -3,6 +3,7 @@ import { db, fetchAll } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { ApiError, body, json, route } from "@/lib/server/http";
 import { getSettings } from "@/lib/server/settings";
+import { requestGalleryReload } from "@/lib/server/devices";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export const POST = route(async (req: NextRequest) => {
     const { error } = await db().from("embeddings").delete().in("customer_id", c.stale);
     if (error) throw new Error(error.message);
     await db().from("customers").update({ consent_given: false }).in("customer_id", c.stale);
+    await requestGalleryReload();
   }
   return json({ deleted_customers: c.stale.length });
 });

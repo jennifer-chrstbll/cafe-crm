@@ -5,7 +5,8 @@ import { ApiError, isUuid, json, route } from "@/lib/server/http";
 
 export const dynamic = "force-dynamic";
 
-const DEVICE_TIMEOUT_SEC = 25;
+const DEVICE_TIMEOUT_SEC = 25;    // PENDING: the UNO Q picks a request up within ~1 s when online
+const CAPTURE_TIMEOUT_SEC = 50;   // RUNNING: capture takes <= 20 s on the device
 
 export const GET = route(async (req: NextRequest, ctx) => {
   await requireUser(req);
@@ -17,7 +18,14 @@ export const GET = route(async (req: NextRequest, ctx) => {
     .eq("request_id", id)
     .maybeSingle();
   if (!data) throw new ApiError(404, "Permintaan tidak ditemukan.");
-  if (data.status === "PENDING" && Date.now() - new Date(data.created_at).getTime() > DEVICE_TIMEOUT_SEC * 1000) {
+  const age = Date.now() - new Date(data.created_at).getTime();
+  if (data.status === "RUNNING" && age > CAPTURE_TIMEOUT_SEC * 1000) {
+    const message = "Perekaman wajah terhenti. Coba lagi.";
+    await db().from("enrollment_requests").update({ status: "FAILED", message, completed_at: new Date().toISOString() })
+      .eq("request_id", id).eq("status", "RUNNING");
+    return json({ ...data, status: "FAILED", message });
+  }
+  if (data.status === "PENDING" && age > DEVICE_TIMEOUT_SEC * 1000) {
     await db().from("enrollment_requests")
       .update({ status: "FAILED", message: "Kamera kasir tidak merespons. Pastikan perangkat menyala.",
                 completed_at: new Date().toISOString() })

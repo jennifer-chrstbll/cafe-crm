@@ -1,11 +1,12 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Cpu, KeyRound, Shield, Store } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
-import { Field, PageHeader, Panel, Pill } from "@/components/app/bits";
+import { Field, PageHeader, Panel } from "@/components/app/bits";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { ErrorState, ListSkeleton } from "@/components/app/states";
 import { Button } from "@/components/ui/button";
@@ -14,13 +15,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useApi } from "@/hooks/useApi";
 import api, { errorMessage } from "@/services/api";
 import { cn } from "@/lib/utils";
-import { formatDate, timeAgo } from "@/lib/format";
-import { AppSettings, Device } from "@/types";
+import { formatDate } from "@/lib/format";
+import { AppSettings } from "@/types";
 
 const TABS = [
   { id: "account", label: "Akun", icon: KeyRound, owner: false },
   { id: "devices", label: "Perangkat", icon: Cpu, owner: true },
-  { id: "cafe", label: "Kafe & asosiasi", icon: Store, owner: true },
+  { id: "cafe", label: "Kafe & kunjungan", icon: Store, owner: true },
   { id: "privacy", label: "Privasi", icon: Shield, owner: true },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -45,38 +46,23 @@ function Account() {
 }
 
 function Devices({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => Promise<void> }) {
-  const devices = useApi<Device[]>("/devices", { interval: 15_000 });
   const [d, setD] = useState(s.devices);
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Panel title="Status perangkat" bodyClassName="p-0">
-        {devices.loading ? <div className="p-4"><ListSkeleton rows={2} avatar={false} /></div> : !devices.data?.length ? (
-          <p className="p-4 text-sm text-muted-foreground">Belum ada perangkat yang mengirim status. Nyalakan Arduino UNO Q (kamera kasir) dan Raspberry Pi (kamera area).</p>
-        ) : (
-          <ul className="divide-y">
-            {devices.data.map((x) => (
-              <li key={x.device_id} className="flex items-center gap-3 px-4 py-3 text-sm">
-                <span className={cn("h-3 w-3 rounded-full", x.online ? "bg-success" : "bg-destructive")} aria-hidden />
-                <div className="flex-1">
-                  <p className="font-medium">{x.kind === "facerec" ? "Kamera kasir (UNO Q)" : x.kind === "persontrack" ? "Kamera area (Raspberry Pi)" : x.kind} · <span className="font-mono">{x.device_id}</span></p>
-                  <p className="text-muted-foreground">
-                    {x.online ? "Online" : "Offline"} · terakhir {timeAgo(x.last_seen_at)}
-                    {typeof x.info?.fps === "number" && ` · ${(x.info.fps as number).toFixed(1)} FPS`}
-                    {typeof x.info?.gallery === "number" && ` · ${x.info.gallery} wajah`}
-                  </p>
-                </div>
-                <Pill tone={x.online ? "success" : "danger"}>{x.online ? "Online" : "Offline"}</Pill>
-              </li>
-            ))}
-          </ul>
-        )}
+      <Panel title="Perangkat & kamera">
+        <p className="text-sm text-muted-foreground">Status UNO Q dan Raspberry Pi, cek perangkat, mulai ulang, dan pilihan kamera ada di halaman Perangkat.
+          Titik kasir dan area staf diatur di Tata Letak Kamera.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button asChild size="lg"><Link href="/devices">Buka Perangkat</Link></Button>
+          <Button asChild size="lg" variant="outline"><Link href="/cameras">Tata Letak Kamera</Link></Button>
+        </div>
       </Panel>
-      <Panel title="Identitas perangkat">
+      <Panel title="Identitas kamera kasir">
         <form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); await save({ devices: d }); }}>
-          <Field label="ID kamera kasir" htmlFor="cam-c" hint="Harus sama dengan CAMERA_ID di .env UNO Q."><Input id="cam-c" value={d.cashier_camera_id} onChange={(e) => setD({ ...d, cashier_camera_id: e.target.value })} /></Field>
-          <Field label="ID kamera area (dekat kasir)" htmlFor="cam-a" hint="Kamera person tracking yang melihat area kasir."><Input id="cam-a" value={d.area_camera_id} onChange={(e) => setD({ ...d, area_camera_id: e.target.value })} /></Field>
-          <Field label="Alamat video kamera kasir" htmlFor="cam-s" hint="Hanya bisa dibuka dari jaringan Wi-Fi kafe."><Input id="cam-s" value={d.stream_url} onChange={(e) => setD({ ...d, stream_url: e.target.value })} /></Field>
-          <Button type="submit" size="lg">Simpan</Button>
+          <Field label="ID kamera kasir" htmlFor="cam-c" hint="Harus sama dengan CAMERA_ID di .env UNO Q (bawaan uno-q-001).">
+            <Input id="cam-c" value={d.cashier_camera_id} onChange={(e) => setD({ ...d, cashier_camera_id: e.target.value.trim() })} />
+          </Field>
+          <Button type="submit" size="lg" disabled={!/^[A-Za-z0-9_.-]{1,40}$/.test(d.cashier_camera_id)}>Simpan</Button>
         </form>
       </Panel>
     </div>
@@ -85,44 +71,31 @@ function Devices({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) 
 
 function Cafe({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => Promise<void> }) {
   const [floors, setFloors] = useState(s.cafe.floors);
-  const [a, setA] = useState(s.association);
   const [v, setV] = useState(s.visits);
   const n = (x: string) => Number(x) || 0;
   return (
-    <form className="grid gap-4 xl:grid-cols-2" onSubmit={async (e) => { e.preventDefault(); await save({ cafe: { ...s.cafe, floors }, association: a, visits: v }); }}>
-      <Panel title="Lantai & kapasitas">
+    <form className="grid gap-4 xl:grid-cols-2" onSubmit={async (e) => { e.preventDefault(); await save({ cafe: { ...s.cafe, floors }, visits: v }); }}>
+      <Panel title="Lantai & kunjungan">
         <div className="space-y-3">
           {floors.map((f, i) => (
             <Field key={f.floor} label={`Lantai ${f.floor} — kapasitas kursi`}>
               <Input inputMode="numeric" value={f.capacity} onChange={(e) => setFloors(floors.map((x, j) => (j === i ? { ...x, capacity: n(e.target.value) } : x)))} />
             </Field>
           ))}
-          <Field label="Kunjungan selesai bila orang tidak terlihat (menit)" hint="Dipakai untuk mencatat jam pulang dari person tracking.">
+          <Field label="Cadangan: tutup kunjungan bila pelacakan diam selama (menit)" hint="Biasanya Raspberry Pi yang mencatat jam pulang. Ini hanya dipakai bila Pi mati.">
             <Input inputMode="numeric" value={v.exit_timeout_minutes} onChange={(e) => setV({ ...v, exit_timeout_minutes: n(e.target.value) })} />
+          </Field>
+          <Field label="Kunjungan paling lama (jam)" hint="Samakan dengan VISIT_MAX_OPEN_HOURS di .env UNO Q dan Pi.">
+            <Input inputMode="numeric" value={v.max_open_hours} onChange={(e) => setV({ ...v, max_open_hours: n(e.target.value) })} />
           </Field>
         </div>
       </Panel>
-      <Panel title={<div><h2 className="font-semibold">Asosiasi identitas</h2><p className="text-xs text-muted-foreground">Menghubungkan Customer ID (wajah) dengan Track ID (kamera area). Kalibrasi di lokasi.</p></div>}>
-        <div className="space-y-3">
-          <p className="text-sm font-medium">Area kasir di kamera area (piksel)</p>
-          <div className="grid grid-cols-4 gap-2">
-            {(["x1", "y1", "x2", "y2"] as const).map((k) => (
-              <Field key={k} label={k}><Input inputMode="numeric" value={a.roi[k]} onChange={(e) => setA({ ...a, roi: { ...a.roi, [k]: n(e.target.value) } })} /></Field>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Titik berdiri kasir x"><Input inputMode="numeric" value={a.anchor.x} onChange={(e) => setA({ ...a, anchor: { ...a.anchor, x: n(e.target.value) } })} /></Field>
-            <Field label="Titik berdiri kasir y"><Input inputMode="numeric" value={a.anchor.y} onChange={(e) => setA({ ...a, anchor: { ...a.anchor, y: n(e.target.value) } })} /></Field>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            <Field label="θ ambang"><Input inputMode="decimal" value={a.theta} onChange={(e) => setA({ ...a, theta: Number(e.target.value) })} /></Field>
-            <Field label="w spasial"><Input inputMode="decimal" value={a.weights.spatial} onChange={(e) => setA({ ...a, weights: { ...a.weights, spatial: Number(e.target.value) } })} /></Field>
-            <Field label="w kinematik"><Input inputMode="decimal" value={a.weights.kinematic} onChange={(e) => setA({ ...a, weights: { ...a.weights, kinematic: Number(e.target.value) } })} /></Field>
-            <Field label="w temporal"><Input inputMode="decimal" value={a.weights.temporal} onChange={(e) => setA({ ...a, weights: { ...a.weights, temporal: Number(e.target.value) } })} /></Field>
-          </div>
-          {Math.abs(a.weights.spatial + a.weights.kinematic + a.weights.temporal - 1) > 0.01 && (
-            <p className="text-sm text-warning">Jumlah bobot sebaiknya 1 (sekarang {(a.weights.spatial + a.weights.kinematic + a.weights.temporal).toFixed(2)}).</p>
-          )}
+      <Panel title={<div><h2 className="font-semibold">Asosiasi identitas (wajah → orang)</h2><p className="text-xs text-muted-foreground">Dihitung di Raspberry Pi, setiap kali kamera wajah mengenali pelanggan.</p></div>}>
+        <div className="space-y-2 text-sm">
+          <p>Untuk setiap orang <i>j</i> di kamera yang melihat kasir: jarak titik kaki ke titik kasir <i>d</i> dan kecepatan <i>v</i>, keduanya dibagi tinggi badan orang itu.</p>
+          <p className="rounded-lg bg-muted p-3 font-mono text-xs">L = exp(−d²/2·0,25²) · exp(−v²/2·0,6²)<br />P = L / (ΣL + exp(−2,5²/2))</p>
+          <p>Nama dipasang otomatis bila <b>P ≥ 0,85</b> pada <b>2 kali</b> pengenalan berturut-turut, orangnya di dalam lingkaran kasir, dan bukan staf. Selain itu kasir ditanya di halaman <Link href="/live" className="font-semibold text-primary underline">Kamera</Link>.</p>
+          <p className="text-muted-foreground">Ubah ambangnya lewat .env Raspberry Pi (BIND_P_MIN, BIND_CONFIRM). Titik kasir diatur di <Link href="/cameras" className="font-semibold text-primary underline">Tata Letak Kamera</Link>.</p>
         </div>
       </Panel>
       <div className="xl:col-span-2"><Button type="submit" size="lg">Simpan pengaturan</Button></div>

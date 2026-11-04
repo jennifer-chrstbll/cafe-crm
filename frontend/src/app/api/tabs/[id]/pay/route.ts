@@ -27,6 +27,6 @@ export const POST = route(async (req: NextRequest, ctx) => {
   if (!data?.length) throw new ApiError(409, "Tagihan ini sudah dibayar.");
 
   const row: any = data[0];
-  if (row.visits?.customer_id === GUEST_ID) await closeVisit(row.visit_id, now);
+  if (row.visits?.customer_id === GUEST_ID) await closeVisit(row.visit_id, now, "PAID");
   return json({ transaction_id: id, total_amount: total, payment_method, paid_at: now });
 });

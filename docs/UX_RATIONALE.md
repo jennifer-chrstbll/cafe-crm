@@ -29,17 +29,20 @@ Navigation is **role-based** (`components/app/AppShell.tsx`). People only see wh
 | **Tagihan** `/unpaid` | both | "Who still has to pay?" | Different moment (customer leaving, not ordering); oldest first so nobody is forgotten |
 | **Transaksi** `/transactions` | both | "How much did we take, per payment method?" | Shift closing: cash in the drawer must equal *Tunai* |
 | **Pelanggan** `/customers` | both | "Find a customer / register one" | Lookup when the face is not recognised; profile & privacy actions |
-| **Kamera** `/live` | both | "Is the cashier camera working and well placed?" | Troubleshooting only; video is not needed to serve customers |
+| **Kamera** `/live` | both | "Which person is this customer?" | The only place the cashier corrects person tracking: answer the Pi's questions, attach or remove a name with two taps. Kept off the Kasir screen so the order flow stays uncluttered; the Kasir screen only shows a one-line link when a question is waiting |
 | **Ringkasan** `/dashboard` | owner | "How is today going, and is anything wrong?" | 5-second overview; landing page for the owner |
 | **Analitik** `/analytics` | owner | "What are the trends?" | Slow, reflective analysis; one chart per business question |
 | **Kunjungan** `/visits` | owner | "Who came, how long, how were they linked?" | Evaluation of person tracking + identity association |
 | **Menu** `/menus` | owner | "What do we sell and for how much?" | Configuration, rarely used |
+| **Wajah Terdaftar** `/faces` | owner | "Whose face is stored, and does it still work?" | Data-protection duty (UU PDP): see, re-enroll and delete face data in one place, separate from customer profiles |
 | **Log Wajah** `/recognition-logs` | owner | "Is face recognition accurate in the field?" | Audit trail + ground truth (Rank-1/FAR evidence) |
+| **Perangkat** `/devices` | owner | "Are the UNO Q and Pi healthy, and which webcam is which?" | Replaces the Pi desktop shortcuts (Cek perangkat, Pilih kamera, restart); maintenance, not daily work |
+| **Tata Letak Kamera** `/cameras` | owner | "Where are the cashier, the staff area and the door in the picture?" | A one-time setup task with its own tools; done on the live picture so what you mark is what the Pi uses |
 | **Staf** `/staff` | owner | "Who can log in?" | Account management |
-| **Pengaturan** `/settings` | both (owner tabs) | "How is the system configured?" | Tabs: Akun, Perangkat, Kafe & asosiasi, Privasi — each tab one purpose |
+| **Pengaturan** `/settings` | both (owner tabs) | "How is the system configured?" | Tabs: Akun, Perangkat, Kafe & kunjungan, Privasi — each tab one purpose |
 
-The owner's 11 destinations are grouped into **4 labelled chunks** — *Hari ini*, *Pelanggan*,
-*Bisnis*, *Sistem* — so the menu is scanned as 4 groups instead of 11 items (Miller's chunking).
+The owner's 15 destinations are grouped into **4 labelled chunks of 2–5** — *Hari ini*, *Pelanggan*,
+*Bisnis*, *Sistem* — so the menu is scanned as 4 groups instead of 15 items (Miller's chunking).
 The cashier has **5** destinations, ordered by frequency of use during a shift (serial-position
 effect: the first item is found fastest).
 
@@ -211,6 +214,47 @@ respected · charts have text alternatives · status never by colour alone · se
 | Peak-end rule | clear success toast with amount at the end of each transaction |
 | Aesthetic-usability effect | calm, consistent styling |
 
+## 11b. Device pages: Perangkat, Tata Letak Kamera, Kamera, Wajah Terdaftar
+
+These replace the shortcuts that used to run on the Raspberry Pi desktop (Pilih Kamera, Cek
+Perangkat, Lihat/Kelola & Hapus Wajah, Daftarkan Wajah). Nobody has to open the Pi anymore.
+
+**Who does what.** Setup and destructive actions (choose cameras, draw the layout, restart,
+delete faces) are owner-only; correcting an identity is a cashier task, because the cashier
+is the person who sees the customer (role-based access, least privilege).
+
+**Tata Letak Kamera — drawing on the live picture.**
+- *Direct manipulation* (Shneiderman 1983): the owner clicks the floor where customers stand and
+  drags rectangles on the real camera image, instead of typing pixel coordinates. What is
+  marked is exactly what the Pi uses (match between system and the real world, Nielsen #2).
+- *One tool at a time* (modes shown as a segmented control with an icon and a word; the hint
+  line under it changes with the tool): no hidden mode, no shortcut keys to remember (#6).
+- *Numbered steps with ✓* on the right (1 cashier point, 2 staff area, 3 door, 4 camera change):
+  goal-gradient and Zeigarnik — the unfinished step is visible.
+- *Colour = meaning, same as everywhere*: green = cashier/recognised, amber = staff, blue = door /
+  unidentified person, brown = camera change. People boxes are shown while drawing so the owner
+  sees where feet actually land (the system tests the **foot point**, so that dot is drawn).
+- *Safe defaults & recovery*: nothing changes until **Simpan**; **Batalkan** restores the saved
+  layout; leaving with unsaved changes asks first (#3 user control, #5 error prevention).
+  Server-side validation keeps every value inside the image.
+
+**Kamera — manual identity in two taps.** The Pi asks only when it is not sure (posterior < 0.85,
+or the person was lost). The question appears where the cashier already looks (a one-line amber
+link on Kasir) and on Kamera as a card with one big button "Pilih orangnya" → tap the person →
+confirm. Boxes are the tap targets (Fitts: the whole body is the target, not a small icon).
+"Bukan dia" removes a wrong name; it never deletes the customer's real visit (#5, #9).
+
+**Perangkat.** One card per device: status light + plain-language status ("Offline · 3 menit lalu"),
+the three numbers that matter, then actions ordered by frequency (Cek perangkat → reload →
+restart). The self-check lists ✓ / ! / ✗ with *what to do* for every non-✓ line (#9 help users
+recover). Camera roles use real device names and a "Lihat gambar" preview, so the owner
+recognises the webcam instead of guessing /dev paths (#6).
+
+**Wajah Terdaftar.** Status pill per person ("Berfungsi" / "Perlu daftar ulang"), filter by status,
+multi-select delete with a confirm that repeats the number, and "Hapus semua" protected by typing
+HAPUS SEMUA (deliberate friction for an irreversible bulk action, #5). Deleting a face never
+deletes the customer's history; full erasure stays on the profile (privacy by design).
+
 ## 12. How to evaluate it (proposal: SUS ≥ 68)
 
 Task scenarios for staff/owner (3–8 people), measure time, errors and SUS afterwards:
@@ -221,6 +265,8 @@ Task scenarios for staff/owner (3–8 people), measure time, errors and SUS afte
 5. (Owner) Find today's revenue and the busiest hour this week.
 6. (Owner) Hide a sold-out menu item, then show it again.
 7. A customer asks to delete their face data.
+8. (Cashier) The system asks "siapa Bing?": attach the name to the right person on Kamera.
+9. (Owner) Move the cashier point after the counter was moved, and save.
 
 ## References
 
@@ -232,6 +278,7 @@ Task scenarios for staff/owner (3–8 people), measure time, errors and SUS afte
 - Cleveland, W. S., & McGill, R. (1984). Graphical perception. *J. Am. Stat. Assoc.*, 79(387).
 - Kurosu, M., & Kashimura, K. (1995). Apparent usability vs. inherent usability. *CHI '95*.
 - Yablonski, J. (2020). *Laws of UX*. O'Reilly.
+- Shneiderman, B. (1983). Direct manipulation: a step beyond programming languages. *IEEE Computer*, 16(8).
 - W3C (2018). *Web Content Accessibility Guidelines (WCAG) 2.1*.
 - Apple. *Human Interface Guidelines — Layout (44 pt touch targets)*.
 - Brooke, J. (1996). SUS: a "quick and dirty" usability scale.

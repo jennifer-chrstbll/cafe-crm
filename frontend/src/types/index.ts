@@ -95,10 +95,79 @@ export interface StationLog {
   created_at: string;
 }
 
+export interface TrackingPrompt {
+  device_id: string;
+  camera_id: string;
+  customer_id: string;
+  name: string;
+  reason: string;
+}
+
+type StationBase = { window_sec: number; tracking_prompts?: TrackingPrompt[] };
 export type Station =
-  | { state: "idle"; window_sec: number }
-  | { state: "unknown"; log: StationLog; window_sec: number }
-  | { state: "known"; log: StationLog; customer: CustomerContext; window_sec: number };
+  | ({ state: "idle" } & StationBase)
+  | ({ state: "unknown"; log: StationLog } & StationBase)
+  | ({ state: "known"; log: StationLog; customer: CustomerContext } & StationBase);
+
+/** A camera reported by a device (GET /api/cameras). */
+export interface CameraEntry {
+  key: string;
+  device_id: string;
+  camera: string;
+  kind: "face" | "area";
+  label: string;
+  online: boolean;
+  ok: boolean;
+  floor: number | null;
+  resolution: [number, number] | null;
+}
+export interface Rect { x1: number; y1: number; x2: number; y2: number }
+export interface CameraLayout {
+  cashier?: { x: number; y: number; r: number } | null;
+  staff?: Rect[];
+  exit?: Rect[];
+  transition?: Rect[];
+  updated_at?: string;
+}
+export interface CameraSource { source: string; floor?: number; enabled?: boolean }
+export interface CamerasResponse {
+  cameras: CameraEntry[];
+  sources: Record<string, Record<string, CameraSource>>;
+  layout: Record<string, CameraLayout>;
+}
+export interface FramePerson {
+  id: string;
+  box: [number, number, number, number];
+  customer_id: string | null;
+  name: string;
+  staff: boolean;
+  mode: "AUTO" | "MANUAL" | null;
+  score: number | null;
+}
+export interface FrameResponse {
+  key: string;
+  image: string | null;
+  width: number | null;
+  height: number | null;
+  overlay: {
+    people?: FramePerson[];
+    prompts?: { customer_id: string; name: string; reason: string; camera_id: string }[];
+    faces?: { box: [number, number, number, number]; main: boolean }[];
+    status?: string;
+    enrolling?: boolean;
+    fps?: number;
+  };
+  captured_at: string | null;
+  age_sec: number | null;
+}
+export interface DeviceCommand {
+  command_id: string;
+  device_id: string;
+  command: string;
+  status: "PENDING" | "RUNNING" | "DONE" | "FAILED";
+  message: string | null;
+  result: { checks?: { name: string; status: "ok" | "warn" | "fail"; detail: string; hint?: string }[] } | null;
+}
 
 export interface Tab {
   transaction_id: string;
@@ -124,14 +193,7 @@ export interface Device {
 
 export interface AppSettings {
   cafe: { name: string; floors: { floor: number; capacity: number }[] };
-  devices: { cashier_camera_id: string; area_camera_id: string; stream_url: string };
-  association: {
-    roi: { x1: number; y1: number; x2: number; y2: number };
-    anchor: { x: number; y: number };
-    theta: number;
-    weights: { spatial: number; kinematic: number; temporal: number };
-    sigma: { spatial: number; kinematic: number; temporal: number };
-  };
+  devices: { cashier_camera_id: string };
   visits: { exit_timeout_minutes: number; max_open_hours: number };
   privacy: { retention_days: number };
 }

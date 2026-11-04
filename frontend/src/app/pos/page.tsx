@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ScanFace } from "lucide-react";
+import { MousePointerClick, ScanFace } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { PayDialog } from "@/components/app/PayDialog";
 import { EnrollDialog } from "@/components/app/EnrollDialog";
@@ -134,6 +135,13 @@ function Kasir() {
             </span>
           )}
         </div>
+        {(st?.tracking_prompts?.length ?? 0) > 0 && (
+          <Link href={`/live?prompt=${st!.tracking_prompts![0].customer_id}`} role="status"
+            className="flex items-center gap-2 border-b bg-warning/10 px-4 py-2 text-sm font-medium text-warning hover:bg-warning/15">
+            <MousePointerClick className="h-4 w-4 shrink-0" />
+            <span className="flex-1">Kamera area ragu: siapa {st!.tracking_prompts![0].name || "pelanggan ini"}? Ketuk untuk memilih orangnya.</span>
+          </Link>
+        )}
         <div className="min-h-0 flex-1">
           <CustomerPanel view={view} menus={menuMap} cartLocked={cart.length > 0}
             onAdd={(id) => { const m = menuMap.get(id); if (m) add(m); }}

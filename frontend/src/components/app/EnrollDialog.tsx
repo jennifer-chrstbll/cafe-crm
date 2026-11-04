@@ -9,6 +9,7 @@ import { useApi } from "@/hooks/useApi";
 import api, { errorMessage } from "@/services/api";
 import { AppSettings } from "@/types";
 import { Field } from "./bits";
+import { LiveFrame } from "./LiveFrame";
 
 type Step = "form" | "capture" | "done" | "failed";
 
@@ -29,14 +30,13 @@ export function EnrollDialog({ open, onOpenChange, existing, onDone }: {
   const [error, setError] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [previewOk, setPreviewOk] = useState(true);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   const { data: settings } = useApi<AppSettings>(open ? "/settings" : null);
 
   useEffect(() => {
     if (open) {
       setStep("form"); setName(existing?.name ?? ""); setPhone(""); setConsent(false);
-      setError(null); setCustomerId(existing?.customer_id ?? null); setPreviewOk(true);
+      setError(null); setCustomerId(existing?.customer_id ?? null);
     }
     return () => { if (poll.current) clearInterval(poll.current); };
   }, [open, existing]);
@@ -57,7 +57,7 @@ export function EnrollDialog({ open, onOpenChange, existing, onDone }: {
           const s = await api.get<{ status: string; message: string | null }>(`/enrollment/${r.data.request_id}`);
           if (s.data.status === "DONE") {
             clearInterval(poll.current!); setStep("done");
-          } else if (s.data.status === "FAILED" || Date.now() - started > 40_000) {
+          } else if (s.data.status === "FAILED" || Date.now() - started > 55_000) {
             clearInterval(poll.current!); setMessage(s.data.message ?? "Wajah tidak tertangkap jelas."); setStep("failed");
           }
         } catch (e) {
@@ -119,10 +119,8 @@ export function EnrollDialog({ open, onOpenChange, existing, onDone }: {
 
         {step === "capture" && (
           <div className="space-y-4 text-center" aria-live="polite">
-            {settings?.devices.stream_url && previewOk ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={settings.devices.stream_url} alt="Pratinjau kamera kasir" onError={() => setPreviewOk(false)}
-                className="mx-auto aspect-video w-full rounded-xl bg-black object-cover" />
+            {settings?.devices.cashier_camera_id ? (
+              <LiveFrame cameraKey={`${settings.devices.cashier_camera_id}/face`} showPeople={false} className="mx-auto w-full" />
             ) : (
               <div className="mx-auto flex aspect-video w-full items-center justify-center rounded-xl bg-muted">
                 <ScanFace className="h-14 w-14 animate-pulse text-primary" />
@@ -130,7 +128,7 @@ export function EnrollDialog({ open, onOpenChange, existing, onDone }: {
             )}
             <div>
               <p className="font-semibold">Minta {who || "pelanggan"} menatap kamera kasir</p>
-              <p className="text-sm text-muted-foreground">Lepas masker/topi, jangan bergerak sekitar 3 detik…</p>
+              <p className="text-sm text-muted-foreground">Lepas masker/topi, hadap kamera sekitar 5 detik…</p>
             </div>
             <div className="mx-auto h-1.5 w-40 overflow-hidden rounded-full bg-muted">
               <div className="h-full w-1/3 animate-[pulse_1s_ease-in-out_infinite] rounded-full bg-primary" />

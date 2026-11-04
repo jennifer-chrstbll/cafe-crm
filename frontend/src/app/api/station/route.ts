@@ -5,18 +5,21 @@ import { json, route } from "@/lib/server/http";
 import { customerContext } from "@/lib/server/customers";
 import { getSettings, RECOGNITION_WINDOW_SEC } from "@/lib/server/settings";
 import { closeStaleVisits } from "@/lib/server/visits";
+import { trackingPrompts } from "@/lib/server/devices";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Everything the Kasir screen needs in ONE request (polled every 2 s):
  * who is at the cashier right now (latest decision of the UNO Q within the last
- * RECOGNITION_WINDOW_SEC), plus that customer's profile, open tab and recommendations.
+ * RECOGNITION_WINDOW_SEC), plus that customer's profile, open tab and recommendations,
+ * plus the person-tracking questions waiting for the cashier (tracking_prompts).
  */
 export const GET = route(async (req: NextRequest) => {
   await requireUser(req);
   closeStaleVisits().catch(() => undefined);
   const s = await getSettings();
+  const prompts = trackingPrompts();
   const since = new Date(Date.now() - RECOGNITION_WINDOW_SEC * 1000).toISOString();
 
   const { data: logs, error } = await db()
@@ -28,12 +31,13 @@ export const GET = route(async (req: NextRequest) => {
     .limit(1);
   if (error) throw new Error(error.message);
 
+  const base = { window_sec: RECOGNITION_WINDOW_SEC, tracking_prompts: await prompts };
   const log = logs?.[0];
-  if (!log) return json({ state: "idle", window_sec: RECOGNITION_WINDOW_SEC });
+  if (!log) return json({ state: "idle", ...base });
   if (!log.recognized || !log.customer_id || log.is_correct === false) {
-    return json({ state: "unknown", log, window_sec: RECOGNITION_WINDOW_SEC });
+    return json({ state: "unknown", log, ...base });
   }
   const customer = await customerContext(log.customer_id);
-  if (!customer) return json({ state: "unknown", log, window_sec: RECOGNITION_WINDOW_SEC });
-  return json({ state: "known", log, customer, window_sec: RECOGNITION_WINDOW_SEC });
+  if (!customer) return json({ state: "unknown", log, ...base });
+  return json({ state: "known", log, customer, ...base });
 });

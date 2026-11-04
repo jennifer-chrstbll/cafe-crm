@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useState } from "react";
 import {
   BarChart3, ClipboardList, Coffee, CreditCard, LayoutDashboard, LogOut, Menu as MenuIcon, ReceiptText,
   ScanFace, Settings, ShoppingBag, UserCog, Users, Video, X, Footprints, KeyRound, ChevronDown,
+  Cpu, Frame, Fingerprint,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApi } from "@/hooks/useApi";
@@ -21,7 +22,7 @@ type Group = { title: string; items: Item[] };
 /**
  * Navigation by role (docs/UX_RATIONALE.md §2):
  *  - Cashier: 5 destinations, ordered by how often they are used during a shift.
- *  - Owner: 11 destinations chunked into 4 labelled groups (Hick's law, Miller chunking).
+ *  - Owner: 15 destinations chunked into 4 labelled groups of 2-5 (Hick's law, Miller chunking).
  */
 const CASHIER_NAV: Group[] = [{
   title: "",
@@ -40,10 +41,12 @@ const OWNER_NAV: Group[] = [
     { href: "/pos", label: "Kasir", icon: ShoppingBag },
     { href: "/unpaid", label: "Tagihan", icon: CreditCard, badge: "tabs" },
     { href: "/transactions", label: "Transaksi", icon: ReceiptText },
+    { href: "/live", label: "Kamera", icon: Video },
   ] },
   { title: "Pelanggan", items: [
     { href: "/customers", label: "Pelanggan", icon: Users },
     { href: "/visits", label: "Kunjungan", icon: Footprints },
+    { href: "/faces", label: "Wajah Terdaftar", icon: Fingerprint },
   ] },
   { title: "Bisnis", items: [
     { href: "/analytics", label: "Analitik", icon: BarChart3 },
@@ -51,6 +54,8 @@ const OWNER_NAV: Group[] = [
   ] },
   { title: "Sistem", items: [
     { href: "/recognition-logs", label: "Log Wajah", icon: ScanFace },
+    { href: "/devices", label: "Perangkat", icon: Cpu },
+    { href: "/cameras", label: "Tata Letak Kamera", icon: Frame },
     { href: "/staff", label: "Staf", icon: UserCog },
     { href: "/settings", label: "Pengaturan", icon: Settings },
   ] },
@@ -83,7 +88,7 @@ function DeviceLights({ isOwner }: { isOwner: boolean }) {
     { kind: "persontrack", label: "Pelacakan" },
   ];
   return (
-    <button type="button" onClick={() => router.push(isOwner ? "/settings?tab=devices" : "/live")}
+    <button type="button" onClick={() => router.push(isOwner ? "/devices" : "/live")}
       className="flex h-10 items-center gap-3 rounded-lg px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
       aria-label="Status perangkat">
       {kinds.map((k) => {
@@ -162,7 +167,7 @@ export function AppShell({ children, ownerOnly = false, fullBleed = false }: {
   const path = usePathname();
   const [drawer, setDrawer] = useState(false);
   const { data: tabs } = useApi<Tab[]>(user ? "/tabs" : null, { interval: 20_000 });
-  const { data: health } = useApi<{ migration_004: boolean }>(user && isOwner ? "/health" : null);
+  const { data: health } = useApi<{ migration_004: boolean; migration_005?: boolean }>(user && isOwner ? "/health" : null);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace(`/login?next=${encodeURIComponent(path)}`);
@@ -242,9 +247,11 @@ export function AppShell({ children, ownerOnly = false, fullBleed = false }: {
           </div>
         </header>
 
-        {isOwner && health && !health.migration_004 && (
+        {isOwner && health && (!health.migration_004 || health.migration_005 === false) && (
           <div role="alert" className="border-b border-warning/40 bg-warning/10 px-5 py-2 text-sm text-warning">
-            Database belum diperbarui: jalankan <b>database/004_integration.sql</b> di Supabase SQL Editor agar semua fitur berfungsi.
+            Database belum diperbarui: jalankan{" "}
+            {!health.migration_004 && <><b>database/004_integration.sql</b>{" lalu "}</>}
+            <b>database/005_devices.sql</b> di Supabase SQL Editor agar semua fitur berfungsi.
           </div>
         )}
 

@@ -14,9 +14,10 @@ Recognition secara Real-Time*.
 
 ## Setup
 
-1. **Database** — Supabase → SQL Editor → run `database/004_integration.sql` (safe to re-run).
+1. **Database** — Supabase → SQL Editor → run `database/004_integration.sql`, then
+   `database/005_devices.sql` (both safe to re-run).
 2. **Environment** — copy `frontend/.env.example` to `frontend/.env.local` and fill it in; set
-   the same variables in Vercel. `DEVICE_API_KEY` must match the one on the UNO Q.
+   the same variables in Vercel.
 3. **Run locally**
    ```bash
    cd frontend
@@ -31,7 +32,12 @@ Recognition secara Real-Time*.
 | Role | Starts at | Sees |
 |---|---|---|
 | Kasir | Kasir | Kasir, Tagihan, Pelanggan, Transaksi (today), Kamera |
-| Pemilik | Ringkasan | everything, incl. Analitik, Kunjungan, Menu, Log Wajah, Staf, Pengaturan |
+| Pemilik | Ringkasan | everything, incl. Analitik, Kunjungan, Wajah Terdaftar, Menu, Log Wajah, Perangkat, Tata Letak Kamera, Staf, Pengaturan |
+
+Device management is all in the website (no need to open the Raspberry Pi):
+*Perangkat* (status, self-check, restart, choose webcams), *Tata Letak Kamera* (cashier point,
+staff area, door, camera-change area drawn on the live picture), *Kamera* (live view, attach or
+remove a customer's name on a person), *Wajah Terdaftar* (list, re-enroll, delete face data).
 
 ## Security model
 
@@ -39,4 +45,6 @@ Recognition secara Real-Time*.
   (`requireUser`), owner-only routes check the role.
 - The browser never talks to Supabase. RLS is enabled with no policies, so the public anon key
   cannot read any table; only the server (service_role) and the edge devices can.
-- Edge devices call the API with the `x-device-key` header.
+- Edge devices do not call the website: they read and write Supabase directly and pick up
+  commands from `device_commands`. Live pictures go through `device_frames`, only while a page
+  is open, and are overwritten (never recorded).
