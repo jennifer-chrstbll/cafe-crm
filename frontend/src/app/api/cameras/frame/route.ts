@@ -20,10 +20,24 @@ export const GET = route(async (req: NextRequest) => {
   const { device_id, camera } = parseCameraKey(req.nextUrl.searchParams.get("key"));
   const key = `${device_id}/${camera}`;
   const sb = db();
-  const until = new Date(Date.now() + WATCH_SEC * 1000).toISOString();
-  const { error: e1 } = await sb.from("device_frames")
-    .upsert({ camera_key: key, device_id, camera, wanted_until: until }, { onConflict: "camera_key" });
-  if (e1) throw new Error(e1.message);
+  const since = req.nextUrl.searchParams.get("since");
+  // "Still watching" is written only on the first request and then every few seconds (watch=1),
+  // not on every poll.
+  if (!since || req.nextUrl.searchParams.get("watch")) {
+    const until = new Date(Date.now() + WATCH_SEC * 1000).toISOString();
+    const { error: e1 } = await sb.from("device_frames")
+      .upsert({ camera_key: key, device_id, camera, wanted_until: until }, { onConflict: "camera_key" });
+    if (e1) throw new Error(e1.message);
+  }
+  // The page passes the timestamp of the picture it already has: if nothing newer arrived,
+  // answer without the image (a few bytes instead of ~20 KB).
+  if (since) {
+    const { data: meta } = await sb.from("device_frames").select("captured_at, overlay").eq("camera_key", key).maybeSingle();
+    if (meta?.captured_at && meta.captured_at === since) {
+      return NextResponse.json({ key, unchanged: true, captured_at: since, overlay: meta.overlay ?? {},
+        age_sec: Math.round((Date.now() - new Date(since).getTime()) / 100) / 10 }, { headers: { "Cache-Control": "no-store" } });
+    }
+  }
   const { data, error } = await sb.from("device_frames")
     .select("jpeg_b64, width, height, overlay, captured_at").eq("camera_key", key).maybeSingle();
   if (error) throw new Error(error.message);

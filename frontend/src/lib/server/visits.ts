@@ -125,5 +125,28 @@ export async function closeStaleVisits(force = false): Promise<number> {
       .limit(1);
     if (await closeVisit(v.visit_id, last?.[0]?.created_at ?? v.entry_time, "TIMEOUT")) closed++;
   }
+
+  // 3) Recognised at the cashier but never linked to a body (the Pi could not or did not
+  //    bind it): nothing would ever see this person leave. Close it once neither the
+  //    cashier camera nor an order has seen them for exit_timeout_minutes, at that last sign.
+  const lostIso = new Date(lostBefore).toISOString();
+  const { data: unlinked } = await sb
+    .from("visits")
+    .select("visit_id, customer_id, entry_time, camera_tracks(camera_track_id)")
+    .is("exit_time", null)
+    .neq("customer_id", GUEST_ID)
+    .lt("entry_time", lostIso)
+    .limit(200);
+  for (const v of (unlinked ?? []) as { visit_id: string; customer_id: string; entry_time: string; camera_tracks: unknown[] | null }[]) {
+    if ((v.camera_tracks ?? []).length > 0) continue;          // tracked: rule 1 decides
+    const [{ data: rec }, { data: ord }] = await Promise.all([
+      sb.from("recognition_logs").select("created_at").eq("customer_id", v.customer_id).eq("recognized", true)
+        .gte("created_at", v.entry_time).order("created_at", { ascending: false }).limit(1),
+      sb.from("orders").select("created_at").eq("visit_id", v.visit_id).order("created_at", { ascending: false }).limit(1),
+    ]);
+    const lastSign = [v.entry_time, rec?.[0]?.created_at, ord?.[0]?.created_at]
+      .filter(Boolean).map((x) => new Date(x as string).getTime()).reduce((a, b) => Math.max(a, b), 0);
+    if (lastSign < lostBefore && (await closeVisit(v.visit_id, new Date(lastSign).toISOString(), "TIMEOUT"))) closed++;
+  }
   return closed;
 }

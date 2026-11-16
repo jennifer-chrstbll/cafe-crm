@@ -16,7 +16,7 @@ import { useDeviceCommand } from "@/hooks/useDeviceCommand";
 import api, { errorMessage } from "@/services/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { CamerasResponse, CameraSource, Device, DeviceCommand } from "@/types";
+import { AppSettings, CamerasResponse, CameraSource, Device, DeviceCommand } from "@/types";
 
 type Check = NonNullable<NonNullable<DeviceCommand["result"]>["checks"]>[number];
 type Avail = { source: string; name: string };
@@ -111,7 +111,62 @@ function RolePicker({ device, role, current, available, running, onSaved }: {
   );
 }
 
-function DeviceCard({ d, cams, reloadCams }: { d: Device; cams: CamerasResponse | null; reloadCams: () => void }) {
+/**
+ * Where the UNO Q sends recognised faces. "Otomatis" follows the address the Raspberry Pi
+ * reports itself, so moving to another Wi-Fi needs no typing at all.
+ */
+function PiAddress({ uno, devices }: { uno: Device; devices: Device[] }) {
+  const settings = useApi<AppSettings>("/settings");
+  const pi = devices.find((x) => x.kind === "persontrack");
+  const net = (pi?.info as { network?: { lan_ip?: string; hostname?: string; face_port?: number } } | undefined)?.network;
+  const piUrl = net?.lan_ip ? `http://${net.lan_ip}:${net.face_port ?? 8765}/wajah` : null;
+  const current = (uno.info as { pi?: { url?: string; mode?: string; ok?: boolean | null } }).pi;
+  const [mode, setMode] = useState<"auto" | "manual" | "env" | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const m = mode ?? settings.data?.network?.pi_face_mode ?? "env";
+  const u = url ?? settings.data?.network?.pi_face_url ?? "";
+
+  async function save() {
+    setBusy(true);
+    try {
+      await api.put("/settings", { network: { pi_face_mode: m, pi_face_url: m === "manual" ? u : "" } });
+      toast.success("Disimpan. UNO Q memakai alamat ini dalam ±5 detik.");
+      settings.reload();
+    } catch (e) { toast.error(errorMessage(e)); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold">Alamat Raspberry Pi (tujuan wajah yang dikenali)</p>
+        {current?.url && (
+          <span className="text-xs text-muted-foreground">Sekarang: {current.url}{current.ok === true ? " ✓" : current.ok === false ? " ✗" : ""}</span>
+        )}
+      </div>
+      <div role="radiogroup" className="flex flex-wrap gap-2">
+        {([["auto", "Otomatis"], ["manual", "Ketik sendiri"], ["env", "Dari file .env"]] as const).map(([v, l]) => (
+          <button key={v} type="button" role="radio" aria-checked={m === v} onClick={() => setMode(v)}
+            className={cn("h-10 rounded-lg border px-3 text-sm font-medium", m === v ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {m === "auto" && (
+        <p className="text-sm text-muted-foreground">
+          Mengikuti alamat yang dilaporkan Raspberry Pi sendiri{piUrl ? <>: <b className="text-foreground">{piUrl}</b></> : " (Pi belum online)"}.
+          Pindah Wi-Fi tidak perlu diubah, asal UNO Q dan Pi di Wi-Fi yang sama.
+        </p>
+      )}
+      {m === "manual" && <Input placeholder="http://192.168.1.20:8765/wajah" value={u} onChange={(e) => setUrl(e.target.value)} />}
+      {m === "env" && <p className="text-sm text-muted-foreground">Memakai PI_FACE_URL di file .env UNO Q.</p>}
+      <Button onClick={save} disabled={busy || settings.loading || (m === "manual" && !/^https?:\/\//.test(u))}>{busy ? "Menyimpan…" : "Simpan alamat"}</Button>
+    </div>
+  );
+}
+
+function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: CamerasResponse | null; reloadCams: () => void; devices: Device[] }) {
   const { run, busy } = useDeviceCommand();
   const [checks, setChecks] = useState<Check[] | null>(null);
   const [restart, setRestart] = useState(false);
@@ -175,6 +230,7 @@ function DeviceCard({ d, cams, reloadCams }: { d: Device; cams: CamerasResponse 
                 current={cams?.sources?.[d.device_id]?.[role]} available={available} running={runningOf(role)} onSaved={reloadCams} />
             ))}
           </div>
+          {face && <PiAddress uno={d} devices={devices} />}
           {!face && <p className="text-sm text-muted-foreground">Setelah memilih kamera area, atur titik kasir dan area staf di <Link className="font-semibold text-primary underline" href="/cameras">Tata Letak Kamera</Link>.</p>}
         </div>
       </div>
@@ -198,7 +254,7 @@ export default function DevicesPage() {
             text="Nyalakan Arduino UNO Q dan Raspberry Pi. Setelah programnya berjalan dan tersambung ke internet, perangkat muncul di sini dalam 10 detik." />
         ) : (
           <div className="space-y-4">
-            {devices.data.map((d) => <DeviceCard key={d.device_id} d={d} cams={cams.data} reloadCams={cams.reload} />)}
+            {devices.data.map((d) => <DeviceCard key={d.device_id} d={d} cams={cams.data} reloadCams={cams.reload} devices={devices.data!} />)}
           </div>
         )}
     </AppShell>

@@ -24,7 +24,7 @@ type Selection = { kind: "auto" } | { kind: "customer"; id: string } | { kind: "
 function Kasir() {
   const params = useSearchParams();
   const preset = params.get("customer");
-  const station = useApi<Station>("/station", { interval: 2000 });
+  const station = useApi<Station>("/station", { interval: 1500 });
   const menus = useApi<Menu[]>("/menus");
   const [selection, setSelection] = useState<Selection>(preset ? { kind: "customer", id: preset } : { kind: "auto" });
   const picked = useApi<CustomerContext>(selection.kind === "customer" ? `/customers/${selection.id}` : null);
@@ -38,6 +38,11 @@ function Kasir() {
   const [enrollOpen, setEnrollOpen] = useState(false);
 
   const st = station.data;
+  /** Right after our own change (order, feedback): bypass the server cache so the tab is current. */
+  const refreshStation = useCallback(() => {
+    api.get<Station>("/station?fresh=1").then((r) => station.setData(r.data)).catch(() => station.reload());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const menuMap = useMemo(() => new Map((menus.data ?? []).map((m) => [m.menu_id, m])), [menus.data]);
   const qtyById = useMemo(() => new Map(cart.map((i) => [i.menu.menu_id, i.qty])), [cart]);
 
@@ -106,7 +111,7 @@ function Kasir() {
         toast.success(`Ditambahkan ke tagihan ${who}`, { description: `Total tagihan sekarang ${formatRupiah(r.data.total_amount)}` });
       }
       reset();
-      station.reload();
+      refreshStation();
     } catch (e) {
       toast.error(errorMessage(e, "Pesanan gagal disimpan."));
       throw e;
@@ -120,7 +125,7 @@ function Kasir() {
       await api.patch(`/recognition-logs/${log.log_id}`, { is_correct: ok });
       if (ok) toast.success("Terima kasih, tercatat benar.");
       else { toast("Dicatat salah kenal. Pilih pelanggan yang benar."); setSelection({ kind: "auto" }); setPickerOpen(true); }
-      station.reload();
+      refreshStation();
     } catch (e) { toast.error(errorMessage(e)); }
   }
 
@@ -180,7 +185,7 @@ function Kasir() {
             try {
               await api.post(`/tabs/${currentCustomer.open_tab!.transaction_id}/pay`, { payment_method: m });
               toast.success(`Tagihan ${currentCustomer.name} lunas`, { description: `${formatRupiah(currentCustomer.open_tab!.total_amount)} · ${PAYMENT_LABEL[m]}` });
-              station.reload(); picked.reload();
+              refreshStation(); picked.reload();
             } catch (e) { toast.error(errorMessage(e)); throw e; }
           }} />
       )}

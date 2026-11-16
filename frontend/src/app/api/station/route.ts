@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { json, route } from "@/lib/server/http";
-import { customerContext } from "@/lib/server/customers";
+import { customerContextCached } from "@/lib/server/customers";
 import { getSettings, RECOGNITION_WINDOW_SEC } from "@/lib/server/settings";
 import { closeStaleVisits } from "@/lib/server/visits";
 import { trackingPrompts } from "@/lib/server/devices";
@@ -17,6 +17,10 @@ export const dynamic = "force-dynamic";
  */
 export const GET = route(async (req: NextRequest) => {
   await requireUser(req);
+  const q = req.nextUrl.searchParams;
+  // Kamera page only needs the person-tracking questions.
+  if (q.get("prompts")) return json({ state: "idle", window_sec: RECOGNITION_WINDOW_SEC, tracking_prompts: await trackingPrompts() });
+  const fresh = q.get("fresh") === "1";
   closeStaleVisits().catch(() => undefined);
   const s = await getSettings();
   const prompts = trackingPrompts();
@@ -37,7 +41,7 @@ export const GET = route(async (req: NextRequest) => {
   if (!log.recognized || !log.customer_id || log.is_correct === false) {
     return json({ state: "unknown", log, ...base });
   }
-  const customer = await customerContext(log.customer_id);
+  const customer = await customerContextCached(log.customer_id, fresh);
   if (!customer) return json({ state: "unknown", log, ...base });
   return json({ state: "known", log, customer, ...base });
 });

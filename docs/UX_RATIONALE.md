@@ -242,7 +242,8 @@ is the person who sees the customer (role-based access, least privilege).
 or the person was lost). The question appears where the cashier already looks (a one-line amber
 link on Kasir) and on Kamera as a card with one big button "Pilih orangnya" → tap the person →
 confirm. Boxes are the tap targets (Fitts: the whole body is the target, not a small icon).
-"Bukan dia" removes a wrong name; it never deletes the customer's real visit (#5, #9).
+"Bukan dia" removes a wrong name; it never deletes the customer's real visit (#5, #9). "Bukan staf" removes a wrong staff mark (a customer standing too close to the staff
+area) and keeps that person exempt while they are tracked, so the mark cannot come straight back.
 
 **Perangkat.** One card per device: status light + plain-language status ("Offline · 3 menit lalu"),
 the three numbers that matter, then actions ordered by frequency (Cek perangkat → reload →

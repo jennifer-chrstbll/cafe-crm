@@ -37,7 +37,7 @@ Migrations: run `database/004_integration.sql`, then `database/005_devices.sql` 
 | `device_status` | UNO Q, Pi | CRM | heartbeat every 10 s; offline after 45 s; `info` = cameras, fps, gallery, open questions |
 | `device_commands` | CRM | UNO Q, Pi | `self_check`, `restart`, `reload_gallery` (owner); `assign`, `unassign` (staff); ignored when older than 2 min |
 | `device_frames` | CRM (`wanted_until`), devices (JPEG) | CRM | newest JPEG per camera, ~1/s, only while a page watches; overwritten, never a recording |
-| `app_settings` | CRM (owner) | CRM, devices | `camera_sources`, `camera_layout`, `devices.cashier_camera_id`, `visits`, `privacy` |
+| `app_settings` | CRM (owner) | CRM, devices | `camera_sources`, `camera_layout`, `devices.cashier_camera_id`, `visits`, `privacy`, `tracking.visit_gap_sec` (Pi), `network` (UNO Q: where to send face events: `auto` = the Pi's own address from its heartbeat `info.network.lan_ip`, `manual` = typed URL, `env` = PI_FACE_URL) |
 
 ### `app_settings.camera_sources`
 ```json

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /**
  * Send a command to a device; the page then polls GET /api/devices/commands/[id].
  *   owner : self_check | restart | reload_gallery
- *   staff : assign {track_id, customer_id} | unassign {track_id}   (Kamera page, manual identity)
+ *   staff : assign {track_id, customer_id} | unassign {track_id} | unstaff {track_id}   (Kamera page)
  */
 export const POST = route(async (req: NextRequest) => {
   const s = await requireUser(req);
@@ -23,7 +23,7 @@ export const POST = route(async (req: NextRequest) => {
   if (!isOnline(dev)) throw new ApiError(409, "Perangkat sedang offline. Periksa daya dan Wi-Fi-nya.");
 
   let payload: Record<string, unknown> = {};
-  if (command === "assign" || command === "unassign") {
+  if (command === "assign" || command === "unassign" || command === "unstaff") {
     if (dev.kind !== "persontrack") throw new ApiError(400, "Identitas manual hanya untuk kamera area.");
     const track = b.payload?.track_id;
     if (typeof track !== "string" || track.length > 60) throw new ApiError(400, "Orang yang dipilih tidak valid.");

@@ -10,7 +10,7 @@ export type Point = { x: number; y: number };
 
 /**
  * Live picture of one camera. The cloud website cannot open cameras on the cafe LAN, so it
- * asks for the newest frame once a second (only while the page is visible); the device
+ * asks for the newest frame ~2 times a second (only while the page is visible); the device
  * uploads frames only while someone is watching. Drawn on top, in image fractions (0..1):
  * the camera layout and the people the Pi tracks, so both can be clicked.
  */
@@ -30,6 +30,8 @@ export function LiveFrame({
 }) {
   const [frame, setFrame] = useState<FrameResponse | null>(null);
   const [waited, setWaited] = useState(0);
+  const lastAt = useRef<string | null>(null);
+  const polls = useRef(0);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<Point | null>(null);
   const [live, setLive] = useState<{ a: Point; b: Point } | null>(null);
@@ -37,20 +39,31 @@ export function LiveFrame({
   useEffect(() => {
     setFrame(null);
     setWaited(0);
+    lastAt.current = null;
     if (!cameraKey) return;
     let stop = false;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       if (document.visibilityState === "visible") {
         try {
-          const r = await api.get<FrameResponse>(`/cameras/frame?key=${encodeURIComponent(cameraKey)}`);
-          if (!stop) setFrame(r.data);
+          polls.current += 1;
+          const since = lastAt.current
+            ? `&since=${encodeURIComponent(lastAt.current)}${polls.current % 20 === 0 ? "&watch=1" : ""}` : "";
+          const r = await api.get<FrameResponse & { unchanged?: boolean }>(`/cameras/frame?key=${encodeURIComponent(cameraKey)}${since}`);
+          if (!stop) {
+            if (r.data.unchanged) {
+              setFrame((f) => (f ? { ...f, overlay: r.data.overlay, age_sec: r.data.age_sec } : f));
+            } else {
+              lastAt.current = r.data.image ? r.data.captured_at : null;
+              setFrame(r.data);
+            }
+          }
         } catch {
           /* keep the last picture; the empty state explains if nothing comes */
         }
         if (!stop) setWaited((w) => w + 1);
       }
-      if (!stop) timer = setTimeout(tick, 1000);
+      if (!stop) timer = setTimeout(tick, 250);
     };
     tick();
     return () => { stop = true; clearTimeout(timer); };
@@ -79,7 +92,7 @@ export function LiveFrame({
         <img src={frame.image} alt="Gambar langsung kamera" className="absolute inset-0 h-full w-full select-none object-fill" draggable={false} />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-white/90">
-          {waited < 4 ? (
+          {waited < 16 ? (
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" aria-label="Memuat gambar" />
           ) : (
             <>

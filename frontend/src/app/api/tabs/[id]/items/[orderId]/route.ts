@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db, num } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { ApiError, isUuid, json, route } from "@/lib/server/http";
+import { invalidateCustomerContext } from "@/lib/server/customers";
 
 /** Remove a wrongly entered item from an UNPAID tab (paid transactions are locked). */
 export const DELETE = route(async (req: NextRequest, ctx) => {
@@ -20,5 +21,6 @@ export const DELETE = route(async (req: NextRequest, ctx) => {
   await sb.from("transactions")
     .update(rest?.length ? { total_amount: total } : { total_amount: 0, status: "CANCELLED" })
     .eq("transaction_id", id);
+  invalidateCustomerContext();
   return json({ total_amount: total, cancelled: !rest?.length });
 });

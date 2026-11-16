@@ -1,5 +1,5 @@
 import { db, getSegment, GUEST_ID, num } from "../db";
-import { recommendFor, RecommendationResult } from "./recommendation";
+import { LOYAL_MIN_VISITS, recommendFor, RecommendationResult } from "./recommendation";
 import { getActiveVisit } from "./visits";
 
 export interface TabItem {
@@ -74,15 +74,15 @@ export async function customerContext(customerId: string): Promise<CustomerConte
     .maybeSingle();
   if (!c) return null;
 
-  const [visits, last, faces, active, tab, rec] = await Promise.all([
+  const [visits, last, faces, active, tab] = await Promise.all([
     sb.from("visits").select("visit_id", { count: "exact", head: true }).eq("customer_id", customerId),
     sb.from("visits").select("entry_time").eq("customer_id", customerId).order("entry_time", { ascending: false }).limit(1),
     sb.from("embeddings").select("embedding_id", { count: "exact", head: true }).eq("customer_id", customerId),
     getActiveVisit(customerId),
     openTabFor(customerId),
-    recommendFor(customerId, 3),
   ]);
   const vc = visits.count ?? 0;
+  const rec = await recommendFor(customerId, 3, vc >= LOYAL_MIN_VISITS);
   return {
     customer_id: c.customer_id, name: c.name, phone_number: c.phone_number, notes: c.notes,
     member_since: c.created_at, visit_count: vc, segment: getSegment(vc),
@@ -91,4 +91,28 @@ export async function customerContext(customerId: string): Promise<CustomerConte
     active_visit: active ? { visit_id: active.visit_id, entry_time: active.entry_time, track_id: active.track_id_aktif } : null,
     open_tab: tab, recommendation: rec,
   };
+}
+
+
+/**
+ * The Kasir screen asks every 2-3 s who is at the cashier; rebuilding the whole context
+ * (profile, visits, open tab, recommendations: ~10 queries) each time made the website slow.
+ * A warm server instance keeps it for CTX_TTL_MS; anything that changes a customer's tab
+ * calls invalidateCustomerContext(), and the page asks with fresh=1 right after its own change.
+ */
+const CTX_TTL_MS = 10_000;
+const ctxCache = new Map<string, { at: number; ctx: CustomerContext | null }>();
+
+export async function customerContextCached(customerId: string, fresh = false): Promise<CustomerContext | null> {
+  const hit = ctxCache.get(customerId);
+  if (!fresh && hit && Date.now() - hit.at < CTX_TTL_MS) return hit.ctx;
+  const ctx = await customerContext(customerId);
+  ctxCache.set(customerId, { at: Date.now(), ctx });
+  if (ctxCache.size > 200) ctxCache.delete(ctxCache.keys().next().value as string);
+  return ctx;
+}
+
+export function invalidateCustomerContext(customerId?: string | null) {
+  if (customerId) ctxCache.delete(customerId);
+  else ctxCache.clear();
 }

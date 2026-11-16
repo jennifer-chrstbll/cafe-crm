@@ -9,6 +9,13 @@ export const dynamic = "force-dynamic";
 export const GET = route(async (req: NextRequest) => {
   await requireUser(req);
   const sb = db();
+  if (req.nextUrl.searchParams.get("count")) {
+    // Badge in the menu bar: one cheap count instead of every open tab with its items.
+    const { count, error } = await sb.from("transactions").select("transaction_id", { count: "exact", head: true })
+      .eq("status", "UNPAID");
+    if (error) throw new Error(error.message);
+    return json({ count: count ?? 0 });
+  }
   const { data: txs, error } = await sb.from("transactions")
     .select("transaction_id, visit_id, label, created_at, visits(customer_id, customers(name))")
     .eq("status", "UNPAID")

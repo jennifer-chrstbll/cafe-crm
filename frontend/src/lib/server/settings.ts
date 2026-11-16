@@ -5,13 +5,21 @@ export interface AppSettings {
   /** cashier_camera_id = CAMERA_ID of the UNO Q (enrollment requests and the Kasir screen use it). */
   devices: { cashier_camera_id: string };
   visits: { exit_timeout_minutes: number; max_open_hours: number };
+  /** Seconds out of sight of every area camera before the Raspberry Pi ends a visit. */
+  tracking: { visit_gap_sec: number };
+  /** Where the UNO Q sends face events: Pi's own reported address (auto), typed URL, or its .env. */
+  network: { pi_face_mode: "auto" | "manual" | "env"; pi_face_url: string };
   privacy: { retention_days: number };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   cafe: { name: "Café Lounge Gedung B", floors: [{ floor: 1, capacity: 20 }, { floor: 2, capacity: 25 }] },
   devices: { cashier_camera_id: "uno-q-001" },
-  visits: { exit_timeout_minutes: 10, max_open_hours: 6 },
+  // 15 min: web-session boundary studies put the optimum at 11-15 min (Goker & He 2000);
+  // used only when no tracker reports the person (fallback).
+  visits: { exit_timeout_minutes: 15, max_open_hours: 6 },
+  tracking: { visit_gap_sec: 15 },
+  network: { pi_face_mode: "env", pi_face_url: "" },
   privacy: { retention_days: 90 },
 };
 

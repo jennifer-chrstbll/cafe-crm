@@ -72,9 +72,10 @@ function Devices({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) 
 function Cafe({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => Promise<void> }) {
   const [floors, setFloors] = useState(s.cafe.floors);
   const [v, setV] = useState(s.visits);
+  const [tr, setTr] = useState(s.tracking);
   const n = (x: string) => Number(x) || 0;
   return (
-    <form className="grid gap-4 xl:grid-cols-2" onSubmit={async (e) => { e.preventDefault(); await save({ cafe: { ...s.cafe, floors }, visits: v }); }}>
+    <form className="grid gap-4 xl:grid-cols-2" onSubmit={async (e) => { e.preventDefault(); await save({ cafe: { ...s.cafe, floors }, visits: v, tracking: tr }); }}>
       <Panel title="Lantai & kunjungan">
         <div className="space-y-3">
           {floors.map((f, i) => (
@@ -82,7 +83,11 @@ function Cafe({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => 
               <Input inputMode="numeric" value={f.capacity} onChange={(e) => setFloors(floors.map((x, j) => (j === i ? { ...x, capacity: n(e.target.value) } : x)))} />
             </Field>
           ))}
-          <Field label="Cadangan: tutup kunjungan bila pelacakan diam selama (menit)" hint="Biasanya Raspberry Pi yang mencatat jam pulang. Ini hanya dipakai bila Pi mati.">
+          <Field label="Kunjungan selesai bila tidak terlihat kamera area selama (detik)"
+            hint="Jam keluar = saat terakhir terlihat. Hitung angka yang tepat untuk kafemu dengan scripts/gap_threshold.py di Raspberry Pi (rata-rata + 1,5 simpangan baku celah yang terukur; Catledge & Pitkow 1995).">
+            <Input inputMode="numeric" value={tr.visit_gap_sec} onChange={(e) => setTr({ visit_gap_sec: n(e.target.value) })} />
+          </Field>
+          <Field label="Cadangan: tutup kunjungan bila tidak ada kabar pelacakan/wajah selama (menit)" hint="Dipakai bila Pi mati atau nama tidak pernah terpasang. Rekomendasi 15 (batas sesi optimal 11–15 menit, Göker & He 2000).">
             <Input inputMode="numeric" value={v.exit_timeout_minutes} onChange={(e) => setV({ ...v, exit_timeout_minutes: n(e.target.value) })} />
           </Field>
           <Field label="Kunjungan paling lama (jam)" hint="Samakan dengan VISIT_MAX_OPEN_HOURS di .env UNO Q dan Pi.">

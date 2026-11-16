@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { invalidateApi } from "@/hooks/useApi";
 import api from "@/services/api";
 import { User } from "@/types";
 
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => undefined);
+    invalidateApi();
     setUser(null);
     router.replace("/login");
   }, [router]);

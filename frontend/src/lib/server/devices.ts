@@ -6,10 +6,10 @@ import { getSettings } from "./settings";
 export const OFFLINE_AFTER_SEC = 45;
 
 /** A device ignores commands older than 2 minutes (no surprise restarts after a power cut). */
-export type CommandName = "self_check" | "restart" | "reload_gallery" | "assign" | "unassign";
+export type CommandName = "self_check" | "restart" | "reload_gallery" | "assign" | "unassign" | "unstaff";
 
 export const OWNER_COMMANDS: CommandName[] = ["self_check", "restart", "reload_gallery"];
-export const STAFF_COMMANDS: CommandName[] = ["assign", "unassign"];
+export const STAFF_COMMANDS: CommandName[] = ["assign", "unassign", "unstaff"];
 
 export interface DeviceRow {
   device_id: string;

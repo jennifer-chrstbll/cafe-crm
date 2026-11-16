@@ -5,6 +5,7 @@ import { ApiError, body, isUuid, json, route } from "@/lib/server/http";
 import { PAYMENT_METHODS } from "@/lib/server/payments";
 import { invalidateRecommendations } from "@/lib/server/recommendation";
 import { closeVisit, getOrCreateActiveVisit } from "@/lib/server/visits";
+import { invalidateCustomerContext } from "@/lib/server/customers";
 
 interface OrderBody {
   customer_id?: string | null;      // null / absent = walk-in guest
@@ -94,6 +95,8 @@ export const POST = route(async (req: NextRequest) => {
   await sb.from("transactions").update({ total_amount: total }).eq("transaction_id", txId);
   if (isGuest && mode === "pay_now") await closeVisit(visit.visit_id, now, "PAID");
   invalidateRecommendations();
+
+  invalidateCustomerContext();
 
   return json({
     transaction_id: txId, visit_id: visit.visit_id, status: mode === "tab" ? "UNPAID" : "PAID",

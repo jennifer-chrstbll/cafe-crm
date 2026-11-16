@@ -9,10 +9,10 @@ import {
   Cpu, Frame, Fingerprint,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useApi } from "@/hooks/useApi";
+import { useApi, useOnline } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { formatDayLong, formatTime } from "@/lib/format";
-import { Device, Tab } from "@/types";
+import { Device } from "@/types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FullPageLoader, Forbidden } from "./states";
 
@@ -166,7 +166,8 @@ export function AppShell({ children, ownerOnly = false, fullBleed = false }: {
   const router = useRouter();
   const path = usePathname();
   const [drawer, setDrawer] = useState(false);
-  const { data: tabs } = useApi<Tab[]>(user ? "/tabs" : null, { interval: 20_000 });
+  const { data: tabs } = useApi<{ count: number }>(user ? "/tabs?count=1" : null, { interval: 20_000 });
+  const online = useOnline();
   const { data: health } = useApi<{ migration_004: boolean; migration_005?: boolean }>(user && isOwner ? "/health" : null);
 
   useEffect(() => {
@@ -176,7 +177,7 @@ export function AppShell({ children, ownerOnly = false, fullBleed = false }: {
 
   if (isLoading || !user) return <FullPageLoader />;
   const groups = isOwner ? OWNER_NAV : CASHIER_NAV;
-  const tabCount = tabs?.length ?? 0;
+  const tabCount = tabs?.count ?? 0;
   const current = groups.flatMap((g) => g.items).find((i) => isActive(path, i.href));
 
   return (
@@ -252,6 +253,12 @@ export function AppShell({ children, ownerOnly = false, fullBleed = false }: {
             Database belum diperbarui: jalankan{" "}
             {!health.migration_004 && <><b>database/004_integration.sql</b>{" lalu "}</>}
             <b>database/005_devices.sql</b> di Supabase SQL Editor agar semua fitur berfungsi.
+          </div>
+        )}
+
+        {!online && (
+          <div role="alert" className="border-b border-destructive/40 bg-destructive/10 px-5 py-2 text-sm font-medium text-destructive">
+            Internet terputus. Data terakhir tetap ditampilkan; halaman tersambung lagi otomatis saat internet kembali.
           </div>
         )}
 

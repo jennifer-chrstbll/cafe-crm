@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { MousePointerClick, UserRoundCheck, UserX, Video, X } from "lucide-react";
+import { MousePointerClick, ShieldOff, UserRoundCheck, UserX, Video, X } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader, Panel, Pill, Segmented } from "@/components/app/bits";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
@@ -27,7 +27,7 @@ type Target = { customer_id: string; name: string };
 function LiveContent() {
   const params = useSearchParams();
   const cams = useApi<CamerasResponse>("/cameras", { interval: 15_000 });
-  const station = useApi<Station>("/station", { interval: 3000 });
+  const station = useApi<Station>("/station?prompts=1", { interval: 3000 });
   const list = useMemo(() => (cams.data?.cameras ?? []).slice().sort((a, b) =>
     a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind === "area" ? -1 : 1), [cams.data]);
   const [key, setKey] = useState<string | null>(null);
@@ -65,6 +65,15 @@ function LiveContent() {
       const r = await run(cam.device_id, "unassign", { track_id: person.id, customer_id: person.customer_id });
       if (r.status === "DONE") { toast.success("Identitas dilepas dari orang itu."); setSelected(null); }
       else toast.error(r.message ?? "Gagal melepas identitas.");
+    } catch (e) { toast.error(errorMessage(e)); }
+  }
+
+  async function unstaff(person: FramePerson) {
+    if (!cam) return;
+    try {
+      const r = await run(cam.device_id, "unstaff", { track_id: person.id });
+      if (r.status === "DONE") { toast.success("Tanda staf dicabut. Orang ini dihitung sebagai pelanggan."); setSelected({ ...person, staff: false }); }
+      else toast.error(r.message ?? "Gagal mencabut tanda staf.");
     } catch (e) { toast.error(errorMessage(e)); }
   }
 
@@ -145,7 +154,12 @@ function LiveContent() {
                     <Button size="lg" variant="outline" onClick={() => setUnassign(selected)} disabled={!!busy}><UserX /> Bukan dia</Button>
                   )}
                 </div>
-                {selected.staff && <p className="text-muted-foreground">Ditandai staf karena berdiri di area staf. Memasang pelanggan akan mencabut tanda staf.</p>}
+                {selected.staff && (<>
+                  <Button size="lg" variant="outline" className="w-full" onClick={() => unstaff(selected)} disabled={!!busy}>
+                    <ShieldOff /> {busy ? "Memproses…" : "Bukan staf"}
+                  </Button>
+                  <p className="text-muted-foreground">Ditandai staf karena berdiri di area staf. Kalau ini pelanggan, tekan <b>Bukan staf</b>. Bila sering terjadi, kecilkan Area staf di Tata Letak Kamera.</p>
+                </>)}
               </div>
             )}
           </Panel>

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { ApiError, body, isUuid, json, route } from "@/lib/server/http";
 import { PAYMENT_METHODS } from "@/lib/server/payments";
 import { closeVisit } from "@/lib/server/visits";
+import { invalidateCustomerContext } from "@/lib/server/customers";
 
 /** Settle a tab. The UNPAID guard makes a double tap harmless (second call gets 409). */
 export const POST = route(async (req: NextRequest, ctx) => {
@@ -28,5 +29,6 @@ export const POST = route(async (req: NextRequest, ctx) => {
 
   const row: any = data[0];
   if (row.visits?.customer_id === GUEST_ID) await closeVisit(row.visit_id, now, "PAID");
+  invalidateCustomerContext();
   return json({ transaction_id: id, total_amount: total, payment_method, paid_at: now });
 });

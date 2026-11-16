@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, CreditCard, Plus, ScanFace, Sparkles, Star, UserRound, UserSearch, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, Compass, CreditCard, MessageSquareQuote, Plus, RefreshCw, ScanFace, Sparkles, Star, UserRound, UserSearch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, Pill, SegmentBadge } from "@/components/app/bits";
 import { cn } from "@/lib/utils";
 import { formatRupiah, timeAgo } from "@/lib/format";
+import { greetings } from "./greeting";
 import { CustomerContext, Menu, StationLog } from "@/types";
 
 export type PanelView =
@@ -115,6 +117,8 @@ export function CustomerPanel({ view, menus, onAdd, onPickCustomer, onGuest, onE
         </div>
       )}
 
+      <Greeting ctx={c} />
+
       {c.notes && <p className="rounded-lg border-l-4 border-info bg-info/5 px-3 py-2 text-sm">{c.notes}</p>}
 
       {c.open_tab && (
@@ -138,7 +142,38 @@ export function CustomerPanel({ view, menus, onAdd, onPickCustomer, onGuest, onE
         hint={rec.strategy === "COLLABORATIVE_FILTERING" ? "Berdasarkan pelanggan dengan selera serupa" : "Menu terlaris (riwayat belum cukup)"}
         items={rec.recommendations.map((r) => ({ id: r.menu_id, name: r.name, sub: r.reason }))}
         menus={menus} onAdd={onAdd} empty="Belum ada data penjualan." />
+
+      {(rec.discover?.length ?? 0) > 0 && (
+        <Suggestion title="Coba yang baru" icon={Compass} hint="Untuk pelanggan setia: menu yang belum pernah dipesan, dari kategori berbeda"
+          items={rec.discover!.map((r) => ({ id: r.menu_id, name: r.name, sub: r.reason }))}
+          menus={menus} onAdd={onAdd} empty="" />
+      )}
     </div>
+  );
+}
+
+/** Suggested words for the cashier; rotates between several wordings (see greeting.ts). */
+function Greeting({ ctx: c }: { ctx: CustomerContext }) {
+  const rec = c.recommendation;
+  const lines = useMemo(() => greetings({
+    name: c.name, visitCount: c.visit_count, favorite: rec.favorites[0]?.name,
+    recommendation: rec.recommendations[0]?.name, discover: rec.discover?.[0]?.name,
+    hasTab: !!c.open_tab, loyal: (rec.discover?.length ?? 0) > 0,
+  }, `${c.customer_id}:${new Date().toDateString()}`), [c.customer_id, c.name, c.visit_count, c.open_tab, rec]);
+  const [i, setI] = useState(0);
+  if (!lines.length) return null;
+  return (
+    <figure className="rounded-xl border bg-primary/5 p-3">
+      <figcaption className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+        <MessageSquareQuote className="h-4 w-4" /> Sapa pelanggan
+      </figcaption>
+      <blockquote className="text-base font-medium leading-snug" aria-live="polite">&ldquo;{lines[i % lines.length]}&rdquo;</blockquote>
+      {lines.length > 1 && (
+        <Button variant="ghost" size="sm" className="mt-1 -ml-2" onClick={() => setI((x) => x + 1)}>
+          <RefreshCw /> Kalimat lain
+        </Button>
+      )}
+    </figure>
   );
 }
 

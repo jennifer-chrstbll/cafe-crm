@@ -83,6 +83,7 @@ export interface CustomerContext {
     transaction_count: number;
     recommendations: Recommendation[];
     favorites: { menu_id: string; name: string; qty: number }[];
+    discover?: Recommendation[];
   };
 }
 
@@ -195,5 +196,7 @@ export interface AppSettings {
   cafe: { name: string; floors: { floor: number; capacity: number }[] };
   devices: { cashier_camera_id: string };
   visits: { exit_timeout_minutes: number; max_open_hours: number };
+  tracking: { visit_gap_sec: number };
+  network: { pi_face_mode: "auto" | "manual" | "env"; pi_face_url: string };
   privacy: { retention_days: number };
 }
