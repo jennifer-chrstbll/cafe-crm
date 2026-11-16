@@ -29,6 +29,21 @@ dijelaskan alasannya, bisa diubah. Untuk skripsi, sebutkan jenisnya dengan jujur
 |---|---|---|
 | YOLO11n input **480×640** (sebelumnya 640×640) | **Evaluasi** | Skala piksel sama dengan 640×640 untuk webcam 4:3, tanpa padding abu-abu, jadi ±25 % lebih sedikit hitungan. Diukur pada video kafe: dari orang yang ditemukan 640×640 dengan keyakinan ≥ 0,5, model 480×640 menemukan 99,0 %. Ukuran 384×512 hanya menemukan ±80 % sehingga tidak dipakai |
 
+## Tampilan kamera langsung (CRM)
+
+Gambar dikirim perangkat → Supabase Realtime (WebSocket) → browser, tanpa lewat database atau
+Vercel. Model dan akurasi tidak berubah: yang dikirim adalah frame yang sudah diproses, lengkap
+dengan kotak orangnya, jadi kotak selalu pas dengan gambar.
+
+| Angka | Jenis | Dasar |
+|---|---|---|
+| **8 fps** (Pi), **10 fps** (UNO Q) saat ada orang/wajah | **Desain** | Tidak bisa lebih cepat dari kecepatan proses perangkat (Pi ±7,6 FPS, UNO Q ±15 FPS); `STREAM_FPS` di `.env` |
+| **2 fps** saat gambar kosong | **Desain** | Tidak ada yang bergerak; menghemat kuota |
+| Lebar **512 px** (Pi) / **480 px** (UNO Q), JPEG kualitas **60** | **Desain** | ±34 KB / ±7 KB per gambar, jauh di bawah batas 256 KB per pesan Supabase |
+| Hanya saat ada yang menonton (diperbarui tiap **3 detik**, berhenti **20 detik** setelah halaman ditutup/disembunyikan) | **Desain** | Tidak ada pemakaian kuota saat tidak ada yang melihat |
+| **450.000** gambar/bulan per perangkat (`STREAM_MONTHLY_MAX`) | **Desain**, dari kuota | Supabase Free: 2 juta pesan Realtime/bulan, pesan dihitung saat dikirim dan saat diterima. 2 perangkat × 450.000 × 2 = 1,8 juta < 2 juta. Bila habis, halaman kamera otomatis memakai gambar dari database (±1–3 gambar/detik) sampai bulan berikutnya |
+| Cadangan: gambar tersimpan **1×/detik** saat Realtime jalan, **±3–4×/detik** saat Realtime gagal | **Desain** | Halaman kamera tidak pernah kosong walau Realtime terputus |
+
 ## Asosiasi wajah → badan (Raspberry Pi)
 
 | Angka | Jenis | Dasar |
