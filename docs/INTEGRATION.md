@@ -39,17 +39,23 @@ Migrations: run `database/004_integration.sql`, then `database/005_devices.sql` 
 | `device_frames` | CRM (`wanted_until`), devices (JPEG) | CRM | newest JPEG per camera, only while a page watches; overwritten, never a recording. 1/s while the Realtime stream works, ~3/s when it does not (fallback) |
 | `app_settings` | CRM (owner) | CRM, devices | `camera_sources`, `camera_layout`, `devices.cashier_camera_id`, `visits`, `privacy`, `tracking.visit_gap_sec` (Pi), `stream` (live view, below), `network` (UNO Q: where to send face events: `auto` = the Pi's own address from its heartbeat `info.network.lan_ip`, `manual` = typed URL, `env` = PI_FACE_URL) |
 
-### Live view: `app_settings.stream` (Supabase Realtime Broadcast)
-```json
-{ "url": "https://<project>.supabase.co", "key": "<anon key>", "topic": "cam-<32 random hex>" }
-```
-Created by the CRM the first time a logged-in user opens a camera page. While `device_frames.wanted_until`
-is in the future, each device POSTs its newest processed frame to `{url}/realtime/v1/api/broadcast`
-(`event: "frame"`, payload `{k, img (base64 JPEG), w, h, o (overlay), t}`): Pi 8/s, UNO Q 10/s while
-people/faces are in view, 2/s otherwise; newest frame only, never queued. Browsers subscribe to the
-same channel (`lib/liveStream.ts`). The topic is a random secret given only to logged-in users.
-Budget: `STREAM_MONTHLY_MAX` (default 450 000 per device per month, saved in `data/stream_budget.json`)
-keeps both devices under the Free plan's 2 million messages; when it is used up, the page uses `device_frames`.
+### Live view
+1. **Direct (main path).** Each device runs `livecast.py` on 127.0.0.1 and a cloudflared quick tunnel;
+   its heartbeat `info.live` = `{url, token, state, viewers, fps_max}`. `GET /api/cameras/live?key=`
+   (logged-in users) turns it into `wss://<tunnel>/live?cam=<camera>&token=<token>`; the browser adds
+   `fps`, `w`, `q`. Binary messages: 4-byte header length, JSON `{o: overlay, w, h, s, t}`, JPEG. The
+   browser answers `"a"` for every picture shown; the device keeps at most 2 unconfirmed. Raw camera
+   frames; overlay = newest tracking result (Pi boxes moved by `vel` × age, max 0.5 s; UNO Q `faces`
+   and `status` are drawn by the browser).
+2. **Fallback: Supabase Realtime Broadcast**, `app_settings.stream` =
+   `{ "url": "https://<project>.supabase.co", "key": "<anon key>", "topic": "cam-<32 random hex>" }`,
+   created by the CRM the first time a logged-in user opens a camera page. While
+   `device_frames.wanted_until` is in the future, each device POSTs its newest processed frame to
+   `{url}/realtime/v1/api/broadcast` (`event: "frame"`, payload `{k, img, w, h, o, t}`), 8–10/s with
+   people/faces in view, 2/s otherwise, at most `STREAM_MONTHLY_MB` (300) per device per month
+   (`data/stream_budget.json`), because Realtime traffic counts toward Supabase egress.
+3. **Fallback: `device_frames`**, polled by the page.
+The page uses 2 and 3 only while 1 delivers nothing for 3 s, and then marks the camera watched.
 
 ### `app_settings.camera_sources`
 ```json

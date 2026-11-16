@@ -31,18 +31,27 @@ dijelaskan alasannya, bisa diubah. Untuk skripsi, sebutkan jenisnya dengan jujur
 
 ## Tampilan kamera langsung (CRM)
 
-Gambar dikirim perangkat → Supabase Realtime (WebSocket) → browser, tanpa lewat database atau
-Vercel. Model dan akurasi tidak berubah: yang dikirim adalah frame yang sudah diproses, lengkap
-dengan kotak orangnya, jadi kotak selalu pas dengan gambar.
+Jalur utama: perangkat → WebSocket (cloudflared quick tunnel) → browser. Tidak lewat Supabase
+maupun server website, jadi tidak memakai kuota Supabase. Model dan akurasi tidak berubah; yang
+diubah hanya cara gambar dikirim.
 
 | Angka | Jenis | Dasar |
 |---|---|---|
-| **8 fps** (Pi), **10 fps** (UNO Q) saat ada orang/wajah | **Desain** | Tidak bisa lebih cepat dari kecepatan proses perangkat (Pi ±7,6 FPS, UNO Q ±15 FPS); `STREAM_FPS` di `.env` |
-| **2 fps** saat gambar kosong | **Desain** | Tidak ada yang bergerak; menghemat kuota |
-| Lebar **512 px** (Pi) / **480 px** (UNO Q), JPEG kualitas **60** | **Desain** | ±34 KB / ±7 KB per gambar, jauh di bawah batas 256 KB per pesan Supabase |
-| Hanya saat ada yang menonton (diperbarui tiap **3 detik**, berhenti **20 detik** setelah halaman ditutup/disembunyikan) | **Desain** | Tidak ada pemakaian kuota saat tidak ada yang melihat |
-| **450.000** gambar/bulan per perangkat (`STREAM_MONTHLY_MAX`) | **Desain**, dari kuota | Supabase Free: 2 juta pesan Realtime/bulan, pesan dihitung saat dikirim dan saat diterima. 2 perangkat × 450.000 × 2 = 1,8 juta < 2 juta. Bila habis, halaman kamera otomatis memakai gambar dari database (±1–3 gambar/detik) sampai bulan berikutnya |
-| Cadangan: gambar tersimpan **1×/detik** saat Realtime jalan, **±3–4×/detik** saat Realtime gagal | **Desain** | Halaman kamera tidak pernah kosong walau Realtime terputus |
+| Gambar kamera mentah hingga **15 fps** ("Halus") / **6 fps** ("Hemat data") | **Desain** | Gerak terlihat halus pada ±12–15 fps; gambar tidak menunggu deteksi (Pi ±7,6 FPS), jadi tampilan lebih halus dari kecepatan pelacakan |
+| Kotak orang digeser sesuai kecepatan orang itu ke waktu gambar, paling jauh **0,5 detik** | **Desain** | Kotak berasal dari hasil pelacakan terakhir; tanpa penggeseran, kotak tertinggal di belakang orang yang berjalan. Hanya tampilan; pelacakan, identitas, dan data tidak berubah |
+| Paling banyak **2 gambar** dalam perjalanan; browser mengonfirmasi setiap gambar yang tampil | **Desain** | Kontrol aliran (seperti jendela TCP): pada koneksi lambat, jumlah gambar/detik turun tetapi gambar tidak tertinggal (tidak ada antrean) |
+| Lebar **640 px**, JPEG kualitas **55** ("Halus"); **480 px**, **50** ("Hemat data") | **Desain** | ±25–50 KB / ±15–30 KB per gambar |
+| Hanya saat ada yang menonton; tab disembunyikan = koneksi ditutup | **Desain** | Tidak ada pemakaian data tanpa penonton |
+| Token acak baru setiap program dimulai, hanya untuk pengguna yang login | **Desain** | Alamat tunnel saja tidak cukup untuk melihat kamera |
+
+Jalur cadangan (bila cloudflared belum dipasang atau terputus): Supabase Realtime, lalu gambar
+tersimpan di database.
+
+| Angka | Jenis | Dasar |
+|---|---|---|
+| **8 fps** (Pi) / **10 fps** (UNO Q) saat ada orang/wajah, **2 fps** saat kosong | **Desain** | Hemat kuota |
+| **300 MB**/bulan per perangkat (`STREAM_MONTHLY_MB`) | **Desain**, dari kuota | Data yang diterima lewat Realtime dihitung sebagai *egress* Supabase; paket Free: 5 GB/bulan untuk seluruh proyek (database juga). 2 × 300 MB = 0,6 GB, sisanya untuk website. Bila habis: gambar tersimpan (±1–3/detik) sampai bulan berikutnya |
+| Gambar tersimpan **1×/detik** saat Realtime jalan, **±3×/detik** saat gagal | **Desain** | Halaman kamera tidak pernah kosong |
 
 ## Asosiasi wajah → badan (Raspberry Pi)
 

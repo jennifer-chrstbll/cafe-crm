@@ -206,6 +206,14 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
             <div><dt className="text-muted-foreground">Pelanggan dikenali</dt><dd className="num font-semibold">{info.identities ?? 0}</dd></div>
           </>)}
           <div><dt className="text-muted-foreground">Versi · aktif</dt><dd className="font-semibold">{info.version ?? "–"} · {fmtUptime(info.uptime_s)}</dd></div>
+          <div className="col-span-2 sm:col-span-4">
+            <dt className="text-muted-foreground">Kamera real-time</dt>
+            <dd className={cn("font-semibold", info.live?.url ? "text-success" : "text-warning")}>
+              {info.live?.url ? `Aktif (langsung dari perangkat, ${info.live.viewers ?? 0} penonton)`
+                : info.live ? `Belum aktif: ${info.live.state ?? "–"}. Tampilan kamera memakai jalur cadangan yang lebih lambat.`
+                : "Belum tersedia (perbarui program perangkat)."}
+            </dd>
+          </div>
         </dl>
 
         <div className="flex flex-wrap gap-2">
