@@ -101,6 +101,15 @@ diatasi dengan menaruh **Pi-nya** di atas, bukan memanjangkan kabel kamera:
 | C. USB lewat kabel LAN | Extender USB-over-Ethernet (Cat5e/6), sampai ±50 m | Lebih mahal |
 | D. Kamera IP / HP | HP Android dengan aplikasi kamera IP (RTSP), atau kamera CCTV IP. Pilih sumbernya di CRM → Perangkat (`rtsp://...`) | Tanpa kabel data, tetapi Wi-Fi harus kuat; ada jeda ±0,2–0,5 detik |
 
+Mengaktifkan kamera kedua di website:
+1. Colok webcam kedua ke port USB biru Pi, tunggu 10 detik.
+2. CRM → **Perangkat** → kartu Raspberry Pi → **Kamera area 2**: tekan **Pakai webcam ini** (atau pilih
+   Webcam USB / Kamera IP), beri nama (mis. *Area duduk*), **Simpan pilihan**. Pi memulai ulang ±15 detik.
+3. Beri nama juga Kamera area 1 (mis. *Area kasir*).
+4. **Tata Letak Kamera**: pilih kamera 2 di atas gambar, gambar **Area pindah kamera** (dan pintu bila ada);
+   gambar area pindah di tempat yang sama pada kamera 1.
+5. **Kamera** → **Semua kamera area**: kedua kamera tampil berdampingan; nama pelanggan ikut pindah.
+
 Aturan pemasangan:
 - **Satu webcam per port USB 3.0 (biru)** di Pi 5. Program sudah meminta format MJPG, jadi dua kamera
   640×480 tidak berebut bandwidth.

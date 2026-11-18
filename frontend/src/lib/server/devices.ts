@@ -96,7 +96,10 @@ export interface CameraEntry {
 }
 
 /** Every camera the devices report, for the camera pickers. */
-export function camerasOf(devices: DeviceRow[]): CameraEntry[] {
+/** Names the owner gave the cameras (app_settings.camera_names): { device_id: { role: name } }. */
+export type CameraNames = Record<string, Record<string, string>>;
+
+export function camerasOf(devices: DeviceRow[], names: CameraNames = {}): CameraEntry[] {
   const out: CameraEntry[] = [];
   for (const d of devices) {
     const online = isOnline(d);
@@ -108,8 +111,11 @@ export function camerasOf(devices: DeviceRow[]): CameraEntry[] {
     } else if (d.kind === "persontrack") {
       const cams = (d.info.cameras ?? []) as { id: string; floor?: number; ok?: boolean; resolution?: [number, number] }[];
       for (const c of cams) {
+        const n = c.id.replace("CAM_", "");
+        const own = names[d.device_id]?.[c.id];
+        const floors = new Set(cams.map((x) => x.floor ?? 1)).size > 1;
         out.push({ key: `${d.device_id}/${c.id}`, device_id: d.device_id, camera: c.id, kind: "area",
-          label: `Kamera area ${c.id.replace("CAM_", "")}${c.floor ? ` · lantai ${c.floor}` : ""}`, online,
+          label: (own || `Kamera area ${n}`) + (floors && c.floor ? ` · lantai ${c.floor}` : ""), online,
           ok: !!c.ok, floor: c.floor ?? null, resolution: c.resolution ?? null });
       }
     }

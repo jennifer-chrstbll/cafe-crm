@@ -22,7 +22,8 @@ type Check = NonNullable<NonNullable<DeviceCommand["result"]>["checks"]>[number]
 type Avail = { source: string; name: string };
 
 const TITLE: Record<string, string> = { facerec: "Kamera kasir · Arduino UNO Q", persontrack: "Pelacakan orang · Raspberry Pi 5" };
-const ROLE_LABEL: Record<string, string> = { face: "Kamera wajah (di depan kasir)", CAM_1: "Kamera area 1 (melihat kasir)", CAM_2: "Kamera area 2" };
+const ROLE_LABEL: Record<string, string> = { face: "Kamera wajah (di depan kasir)", CAM_1: "Kamera area 1 (melihat kasir)", CAM_2: "Kamera area 2 (multi-kamera)" };
+const NAME_HINT: Record<string, string> = { CAM_1: "mis. Area kasir", CAM_2: "mis. Area duduk" };
 
 const fmtUptime = (s?: number) => (s == null ? "–" : s < 3600 ? `${Math.round(s / 60)} mnt` : `${Math.floor(s / 3600)} jam`);
 
@@ -45,15 +46,20 @@ function CheckList({ checks }: { checks: Check[] }) {
 }
 
 /** One role (face / CAM_1 / CAM_2): which webcam or IP camera plays it. */
-function RolePicker({ device, role, current, available, running, onSaved }: {
+function RolePicker({ device, role, current, available, running, onSaved, name: savedName = "", others = [] }: {
   device: Device; role: string; current?: CameraSource; available: Avail[]; running?: string; onSaved: () => void;
+  name?: string; others?: string[];
 }) {
   const known = available.some((a) => a.source === current?.source);
   const [mode, setMode] = useState<"auto" | "usb" | "ip" | "off">(
     !current ? (role === "CAM_2" ? "off" : "auto") : known || current.source.startsWith("/dev/") ? "usb" : "ip");
   const [usb, setUsb] = useState(current && known ? current.source : available[0]?.source ?? "");
   const [ip, setIp] = useState(current && !known && !current.source.startsWith("/dev/") ? current.source : "");
-  const [floor, setFloor] = useState(current?.floor ?? (role === "CAM_2" ? 2 : 1));
+  const [floor, setFloor] = useState(current?.floor ?? 1);
+  const [name, setName] = useState(savedName);
+  const isAreaRole = role === "CAM_1" || role === "CAM_2";
+  // A webcam the Pi reports that no other role uses: the obvious second camera.
+  const spare = available.filter((a) => !others.includes(a.source));
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
   const isArea = role !== "face";
@@ -64,6 +70,7 @@ function RolePicker({ device, role, current, available, running, onSaved }: {
       const source = mode === "usb" ? { source: usb, floor } : mode === "ip" ? { source: ip.trim(), floor } : null;
       if (mode === "usb" && !usb) throw new Error("Pilih webcam dulu.");
       await api.put("/cameras", { device_id: device.device_id, role, source });
+      if (isAreaRole && name.trim() !== savedName) await api.put("/cameras", { device_id: device.device_id, role, name: name.trim() });
       toast.success(isArea ? "Disimpan. Raspberry Pi memulai ulang (±15 detik)." : "Disimpan. Kamera wajah berganti dalam beberapa detik.");
       onSaved();
     } catch (e) { toast.error(e instanceof Error && !("response" in e) ? e.message : errorMessage(e)); }
@@ -95,6 +102,21 @@ function RolePicker({ device, role, current, available, running, onSaved }: {
         <Input placeholder="rtsp://user:sandi@192.168.1.50:554/stream1" value={ip} onChange={(e) => setIp(e.target.value)} />
       )}
       {mode === "auto" && <p className="text-sm text-muted-foreground">Memakai webcam pertama yang tercolok.</p>}
+      {role === "CAM_2" && mode === "off" && (spare.length > 0 ? (
+        <div className="rounded-lg border-2 border-primary bg-primary/10 p-3 text-sm">
+          <p className="font-semibold">Webcam kedua terdeteksi: {spare[0].name}</p>
+          <p className="text-muted-foreground">Untuk multi-kamera, pilih <b>Webcam USB</b>, beri nama (mis. Area duduk), lalu <b>Simpan pilihan</b>.</p>
+          <Button size="sm" className="mt-2" onClick={() => { setMode("usb"); setUsb(spare[0].source); if (!name) setName("Area duduk"); }}>Pakai webcam ini</Button>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Untuk multi-kamera: colok webcam kedua ke port USB biru Raspberry Pi, tunggu 10 detik, lalu muat ulang halaman. Atau pakai kamera IP / HP (RTSP).</p>
+      ))}
+      {isAreaRole && mode !== "off" && (
+        <label className="block space-y-1 text-sm">
+          <span className="font-medium">Nama kamera (tampil di halaman Kamera)</span>
+          <Input placeholder={NAME_HINT[role]} value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />
+        </label>
+      )}
       {isArea && (mode === "usb" || mode === "ip") && (
         <label className="flex items-center gap-2 text-sm">Lantai
           <select value={floor} onChange={(e) => setFloor(Number(e.target.value))} className="h-10 rounded-lg border bg-background px-2 text-base">
@@ -175,7 +197,7 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
   const roles = face ? ["face"] : ["CAM_1", "CAM_2"];
   const available: Avail[] = face ? (info.cameras ?? []) : (info.available_cameras ?? []);
   const runningOf = (role: string) => face ? info.camera?.source
-    : (info.cameras ?? []).find((c: { id: string }) => c.id === role)?.source;
+    : (({ opened, source }: { opened?: string | null; source?: string }) => opened || source)((info.cameras ?? []).find((c: { id: string }) => c.id === role) ?? {});
 
   async function command(c: string, label: string) {
     try {
@@ -250,12 +272,15 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
           <h3 className="text-sm font-semibold">Pilih kamera</h3>
           <div className="grid gap-3 lg:grid-cols-2">
             {roles.map((role) => (
-              <RolePicker key={`${role}:${JSON.stringify(cams?.sources?.[d.device_id]?.[role] ?? null)}`} device={d} role={role}
-                current={cams?.sources?.[d.device_id]?.[role]} available={available} running={runningOf(role)} onSaved={reloadCams} />
+              <RolePicker key={`${role}:${JSON.stringify(cams?.sources?.[d.device_id]?.[role] ?? null)}:${cams?.names?.[d.device_id]?.[role] ?? ""}`}
+                device={d} role={role} current={cams?.sources?.[d.device_id]?.[role]} available={available} running={runningOf(role)}
+                onSaved={reloadCams} name={cams?.names?.[d.device_id]?.[role] ?? ""}
+                others={roles.filter((r) => r !== role).flatMap((r) => [cams?.sources?.[d.device_id]?.[r]?.source, runningOf(r)])
+                  .filter((x): x is string => typeof x === "string")} />
             ))}
           </div>
           {face && <PiAddress uno={d} devices={devices} />}
-          {!face && <p className="text-sm text-muted-foreground">Setelah memilih kamera area, atur titik kasir dan area staf di <Link className="font-semibold text-primary underline" href="/cameras">Tata Letak Kamera</Link>.</p>}
+          {!face && <p className="text-sm text-muted-foreground">Setelah memilih kamera area, atur titik kasir dan area staf di <Link className="font-semibold text-primary underline" href="/cameras">Tata Letak Kamera</Link>. Dengan dua kamera, gambar juga <b>Area pindah kamera</b> di tempat yang terlihat oleh kedua kamera.</p>}
         </div>
       </div>
       <ConfirmDialog open={restart} onOpenChange={setRestart} title={`Mulai ulang ${TITLE[d.kind] ?? d.device_id}?`}

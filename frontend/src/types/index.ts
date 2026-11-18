@@ -136,6 +136,7 @@ export interface CamerasResponse {
   cameras: CameraEntry[];
   sources: Record<string, Record<string, CameraSource>>;
   layout: Record<string, CameraLayout>;
+  names?: Record<string, Record<string, string>>;
 }
 export interface FramePerson {
   id: string;

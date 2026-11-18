@@ -14,9 +14,11 @@ import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/useApi";
 import { useDeviceCommand } from "@/hooks/useDeviceCommand";
 import { errorMessage } from "@/services/api";
+import { cn } from "@/lib/utils";
 import { CamerasResponse, FramePerson, Station, TrackingPrompt } from "@/types";
 
 type Target = { customer_id: string; name: string };
+const ALL = "__all__";
 
 /**
  * Kamera (cashier + owner): what the cameras see, and manual identity.
@@ -30,9 +32,15 @@ function LiveContent() {
   const station = useApi<Station>("/station?prompts=1", { interval: 3000 });
   const list = useMemo(() => (cams.data?.cameras ?? []).slice().sort((a, b) =>
     a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind === "area" ? -1 : 1), [cams.data]);
+  const areas = useMemo(() => list.filter((c) => c.kind === "area"), [list]);
+  const multi = areas.length > 1;
   const [key, setKey] = useState<string | null>(null);
-  const cam = list.find((c) => c.key === key) ?? list[0] ?? null;
+  // "Semua kamera area": both area cameras side by side (default when there are two).
+  const all = multi && (key === null || key === ALL);
+  const cam = all ? areas[0] : list.find((c) => c.key === key) ?? list[0] ?? null;
   const [selected, setSelected] = useState<FramePerson | null>(null);
+  const [selCam, setSelCam] = useState<string | null>(null);         // camera of the selected person
+  const act = (all ? list.find((c) => c.key === selCam) : cam) ?? cam;
   const [target, setTarget] = useState<Target | null>(null);        // customer waiting for a body
   const [picker, setPicker] = useState(false);
   const [confirm, setConfirm] = useState<{ person: FramePerson; customer: Target } | null>(null);
@@ -46,38 +54,39 @@ function LiveContent() {
     if (p && !target) {
       setTarget({ customer_id: p.customer_id, name: p.name || "pelanggan" });
       const c = list.find((x) => x.device_id === p.device_id && x.camera === p.camera_id);
-      if (c) setKey(c.key);
+      if (c && !multi) setKey(c.key);
     }
-  }, [params, prompts, target, list]);
+  }, [params, prompts, target, list, multi]);
 
   async function assign(person: FramePerson, customer: Target) {
-    if (!cam) return;
+    if (!act) return;
     try {
-      const r = await run(cam.device_id, "assign", { track_id: person.id, customer_id: customer.customer_id });
+      const r = await run(act.device_id, "assign", { track_id: person.id, customer_id: customer.customer_id });
       if (r.status === "DONE") { toast.success(`${customer.name} dipasang. Nama ikut orang itu sampai ia pulang.`); setTarget(null); setSelected(null); }
       else toast.error(r.message ?? "Gagal memasang identitas.");
     } catch (e) { toast.error(errorMessage(e)); }
   }
 
   async function release(person: FramePerson) {
-    if (!cam) return;
+    if (!act) return;
     try {
-      const r = await run(cam.device_id, "unassign", { track_id: person.id, customer_id: person.customer_id });
+      const r = await run(act.device_id, "unassign", { track_id: person.id, customer_id: person.customer_id });
       if (r.status === "DONE") { toast.success("Identitas dilepas dari orang itu."); setSelected(null); }
       else toast.error(r.message ?? "Gagal melepas identitas.");
     } catch (e) { toast.error(errorMessage(e)); }
   }
 
   async function unstaff(person: FramePerson) {
-    if (!cam) return;
+    if (!act) return;
     try {
-      const r = await run(cam.device_id, "unstaff", { track_id: person.id });
+      const r = await run(act.device_id, "unstaff", { track_id: person.id });
       if (r.status === "DONE") { toast.success("Tanda staf dicabut. Orang ini dihitung sebagai pelanggan."); setSelected({ ...person, staff: false }); }
       else toast.error(r.message ?? "Gagal mencabut tanda staf.");
     } catch (e) { toast.error(errorMessage(e)); }
   }
 
-  function onPerson(p: FramePerson) {
+  function onPerson(p: FramePerson, camKey: string) {
+    setSelCam(camKey);
     if (target) { setConfirm({ person: p, customer: target }); return; }
     setSelected(p);
   }
@@ -94,8 +103,9 @@ function LiveContent() {
     <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
       <div className="space-y-3">
         {list.length > 1 && (
-          <Segmented value={cam.key} onChange={(v) => { setKey(v); setSelected(null); }}
-            options={list.map((c) => ({ value: c.key, label: c.label }))} />
+          <Segmented value={all ? ALL : cam.key} onChange={(v) => { setKey(v); setSelected(null); }}
+            options={[...(multi ? [{ value: ALL, label: "Semua kamera area" }] : []),
+                      ...list.map((c) => ({ value: c.key, label: c.label }))]} />
         )}
         {target && area && (
           <div role="status" className="flex items-center gap-3 rounded-xl border-2 border-primary bg-primary/10 p-3 text-sm">
@@ -104,15 +114,32 @@ function LiveContent() {
             <Button variant="ghost" size="sm" onClick={() => setTarget(null)} aria-label="Batal"><X /></Button>
           </div>
         )}
-        <LiveFrame cameraKey={cam.key} layout={area ? cams.data?.layout?.[cam.camera] : null} showPeople={area}
-          selectedId={selected?.id} onPerson={area ? onPerson : undefined} />
+        {all ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {areas.map((c) => (
+              <div key={c.key} className="space-y-1.5">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <span className={cn("h-2.5 w-2.5 rounded-full", c.online && c.ok ? "bg-success" : "bg-destructive")} aria-hidden />
+                  {c.label}
+                </p>
+                <LiveFrame cameraKey={c.key} layout={cams.data?.layout?.[c.camera]} showPeople
+                  selectedId={selCam === c.key ? selected?.id : null} onPerson={(p) => onPerson(p, c.key)} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <LiveFrame cameraKey={cam.key} layout={area ? cams.data?.layout?.[cam.camera] : null} showPeople={area}
+            selectedId={selected?.id} onPerson={area ? (p) => onPerson(p, cam.key) : undefined} />
+        )}
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           {area ? (<>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-success" />Dikenali</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-info" />Belum dikenali</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-warning" />Staf</span>
             <span>✓ = dipasang manual · Video tidak direkam.</span>
+            {multi && <span>Nama pelanggan ikut berpindah saat ia berjalan ke kamera lain.</span>}
           </>) : <span>Kamera wajah di kasir. Video tidak direkam.</span>}
+          {area && !multi && <span>Hanya 1 kamera area. Untuk multi-kamera, aktifkan <b>Kamera area 2</b> di halaman Perangkat.</span>}
         </div>
       </div>
 
@@ -138,7 +165,7 @@ function LiveContent() {
         </Panel>
 
         {area && (
-          <Panel title="Orang yang dipilih">
+          <Panel title={all && selected && act ? `Orang yang dipilih · ${act.label}` : "Orang yang dipilih"}>
             {!selected ? (
               <p className="text-sm text-muted-foreground">Ketuk kotak seseorang di gambar untuk memasang atau melepas nama.</p>
             ) : (
