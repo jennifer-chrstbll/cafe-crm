@@ -18,7 +18,7 @@ outbound connections, so nothing needs port forwarding.
 
 | Link | Direction | How |
 |---|---|---|
-| Face recognised → body at the cashier | UNO Q → Pi | `POST http://<pi-ip>:8765/wajah` `{customer_id, score, label}` with `X-Auth-Token: FACE_TOKEN`. Pi uses the arrival time (LAN latency ms), so the boards' clocks do not matter for this |
+| Face recognised → body at the cashier | UNO Q → Pi | `POST http://<pi-ip>:8765/wajah` `{customer_id, score, label, face: {cx, w}}` with `X-Auth-Token: FACE_TOKEN`. Pi uses the arrival time (LAN latency ms), so the boards' clocks do not matter for this |
 | Everything else | device ↔ Supabase | PostgreSQL (`DATABASE_URL`, Session pooler) |
 | Website | browser ↔ Vercel ↔ Supabase | session cookie; service_role key on the server only |
 
@@ -69,20 +69,24 @@ The UNO Q switches camera live; the Pi restarts itself (systemd) when its camera
 ### `app_settings.camera_layout` (fractions of the image, 0..1)
 ```json
 { "CAM_1": { "cashier": { "x": 0.27, "y": 0.47, "r": 0.09 },
+             "facecam":    { "x": 0.27, "y": 0.36 },
              "staff":      [ { "x1": 0.17, "y1": 0.25, "x2": 0.27, "y2": 0.42 } ],
              "exit":       [ { "x1": 0.85, "y1": 0.30, "x2": 1.00, "y2": 1.00 } ],
              "transition": [],
              "updated_at": "2026-11-04T10:00:00Z" } }
 ```
-`r` is the radius as a fraction of the image width. The Pi reloads it within 3 s.
+`r` is the radius as a fraction of the image width. `facecam` (optional) = floor point under the UNO Q
+face camera. The Pi reloads it within 3 s.
 
 ## Face → body (on the Pi, `identity/face_binding.py`)
 
 For every body *j* in the camera with the cashier point, at the frame the face event arrives:
 *d_j* = |foot − Q| / body height, *v_j* = speed / body height,
 *L_j* = exp(−d²/2·0.25²) · exp(−v²/2·0.6²), *P_j* = *L_j* / (Σ*L* + exp(−2.5²/2)).
+With `facecam` marked, a geometry factor (nearest to the face camera, then a self-calibrated
+left/right and distance fit from `face.cx`, `face.w`) decides between two bodies; see the Pi README.
 Bind if the body is inside the circle, not staff, not someone else's, *P* ≥ 0.85, and the same body
-wins 2 face events in a row. Otherwise the Pi publishes a question (`device_status.info.prompts`);
+wins 2 face events in a row. Unclear for 2 events in a row → the Pi publishes a question (`device_status.info.prompts`);
 the CRM shows it on *Kasir* and *Kamera*, and the cashier taps the person (`assign`).
 
 ## Visit lifecycle

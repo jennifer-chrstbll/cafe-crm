@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeftRight, CircleDot, DoorOpen, Eye, Frame, Save, SquareDashed, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Camera, CircleDot, DoorOpen, Eye, Frame, Save, SquareDashed, Trash2, Undo2 } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader, Panel, Segmented } from "@/components/app/bits";
 import { LiveFrame, Point } from "@/components/app/LiveFrame";
@@ -14,7 +14,7 @@ import api, { errorMessage } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { CameraLayout, CamerasResponse, Rect } from "@/types";
 
-type Tool = "view" | "cashier" | "staff" | "exit" | "transition";
+type Tool = "view" | "cashier" | "facecam" | "staff" | "exit" | "transition";
 type AreaKey = "staff" | "exit" | "transition";
 
 const AREAS: { key: AreaKey; title: string; how: string; color: string; icon: typeof SquareDashed }[] = [
@@ -71,6 +71,7 @@ export default function CamerasPage() {
   const tools: { value: Tool; label: React.ReactNode }[] = [
     { value: "view", label: <span className="flex items-center justify-center gap-1.5"><Eye className="h-4 w-4" />Lihat</span> },
     { value: "cashier", label: <span className="flex items-center justify-center gap-1.5"><CircleDot className="h-4 w-4" />Titik kasir</span> },
+    { value: "facecam", label: <span className="flex items-center justify-center gap-1.5"><Camera className="h-4 w-4" />Kamera wajah</span> },
     { value: "staff", label: <span className="flex items-center justify-center gap-1.5"><SquareDashed className="h-4 w-4" />Area staf</span> },
     { value: "exit", label: <span className="flex items-center justify-center gap-1.5"><DoorOpen className="h-4 w-4" />Pintu</span> },
     ...(twoCams ? [{ value: "transition" as Tool, label: <span className="flex items-center justify-center gap-1.5"><ArrowLeftRight className="h-4 w-4" />Pindah kamera</span> }] : []),
@@ -78,6 +79,7 @@ export default function CamerasPage() {
   const hint: Record<Tool, string> = {
     view: "Kotak biru = orang yang dilacak, titik di kakinya = titik pijak yang dipakai sistem.",
     cashier: "Klik LANTAI tempat pembeli berdiri saat membayar (di depan meja, bukan di belakangnya).",
+    facecam: "Klik tepat DI BAWAH kamera wajah (UNO Q), di meja kasir. Garis ungu = arah pandang kamera wajah.",
     staff: "Tekan dan tarik untuk menggambar kotak di belakang meja kasir.",
     exit: "Tekan dan tarik untuk menggambar kotak di depan pintu.",
     transition: "Tekan dan tarik di tempat orang pindah ke kamera lain.",
@@ -104,7 +106,8 @@ export default function CamerasPage() {
               <Segmented value={tool} onChange={setTool} options={tools} size="lg" className="w-full" />
               <p className="text-sm text-muted-foreground" aria-live="polite">{hint[tool]}</p>
               <LiveFrame cameraKey={cam.key} layout={draft} showPeople
-                onPoint={tool === "cashier" ? (p) => setDraft({ ...draft, cashier: { x: p.x, y: p.y, r: draft.cashier?.r ?? 0.08 } }) : undefined}
+                onPoint={tool === "cashier" ? (p) => setDraft({ ...draft, cashier: { x: p.x, y: p.y, r: draft.cashier?.r ?? 0.08 } })
+                  : tool === "facecam" ? (p) => setDraft({ ...draft, facecam: { x: p.x, y: p.y } }) : undefined}
                 onDrag={tool === "staff" || tool === "exit" || tool === "transition"
                   ? (a, b) => setDraft({ ...draft, [tool]: [...(draft[tool] ?? []), rectOf(a, b)].slice(0, 10) }) : undefined} />
               {!cam.online && <p className="text-sm text-warning">Raspberry Pi offline: gambar tidak diperbarui. Tata letak tetap bisa disimpan.</p>}
@@ -127,9 +130,16 @@ export default function CamerasPage() {
                       </div>
                     )}
                   </li>
+                  <li>
+                    <p className="flex items-center gap-2 font-semibold"><span className="h-3 w-3 rounded-full bg-violet-500" />2. Kamera wajah {draft.facecam ? "✓" : "(disarankan)"}</p>
+                    <p className="text-muted-foreground">Klik meja kasir tepat di bawah kamera wajah. Dengan titik ini, bila dua orang berdiri di lingkaran hijau, sistem tahu siapa yang di depan kamera wajah dan memasang nama otomatis, tanpa kasir memilih. Sistem juga belajar sendiri dari setiap pelanggan, sehingga makin lama makin jarang bertanya.</p>
+                    {draft.facecam && (
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setDraft({ ...draft, facecam: null })}><Trash2 /> Hapus titik kamera wajah</Button>
+                    )}
+                  </li>
                   {AREAS.filter((a) => a.key !== "transition" || twoCams).map((a, i) => (
                     <li key={a.key}>
-                      <p className="flex items-center gap-2 font-semibold"><span className={cn("h-3 w-3 rounded-sm", a.color)} />{i + 2}. {a.title} {(draft[a.key]?.length ?? 0) > 0 ? "✓" : ""}</p>
+                      <p className="flex items-center gap-2 font-semibold"><span className={cn("h-3 w-3 rounded-sm", a.color)} />{i + 3}. {a.title} {(draft[a.key]?.length ?? 0) > 0 ? "✓" : ""}</p>
                       <p className="text-muted-foreground">{a.how}</p>
                       {(draft[a.key] ?? []).length > 0 && (
                         <ul className="mt-1 space-y-1">

@@ -6,6 +6,8 @@ import { ApiError } from "./http";
  * camera resolution changes. The Raspberry Pi converts them to pixels.
  *
  *   cashier     the floor spot where the paying customer stands, r = radius as a fraction of the width
+ *   facecam     the floor spot under the UNO Q face camera (on the counter). With it the Pi knows which
+ *               body is in front of the face camera when two people stand at the cashier.
  *   staff       areas only staff stand in (behind the counter): people there never get a customer's identity
  *   exit        the door: a person last seen here has left (visit closed as EXIT_ZONE)
  *   transition  where people walk from this camera into the other one (ReID hands the identity over)
@@ -13,6 +15,7 @@ import { ApiError } from "./http";
 export interface Rect { x1: number; y1: number; x2: number; y2: number }
 export interface CameraLayout {
   cashier?: { x: number; y: number; r: number } | null;
+  facecam?: { x: number; y: number } | null;
   staff?: Rect[];
   exit?: Rect[];
   transition?: Rect[];
@@ -53,8 +56,17 @@ export function validateLayout(cameraId: unknown, raw: unknown): CameraLayout {
     cashier = { x: Math.round((c.x as number) * 10000) / 10000, y: Math.round((c.y as number) * 10000) / 10000,
                 r: Math.round(r * 1000) / 1000 };
   }
+  let facecam: CameraLayout["facecam"] = null;
+  if (o.facecam != null) {
+    const f = o.facecam as Record<string, unknown>;
+    if (!frac(f.x) || !frac(f.y)) throw new ApiError(422, "Titik kamera wajah tidak valid.");
+    facecam = { x: Math.round((f.x as number) * 10000) / 10000, y: Math.round((f.y as number) * 10000) / 10000 };
+    if (cashier && Math.hypot(facecam.x - cashier.x, facecam.y - cashier.y) < 0.02)
+      throw new ApiError(422, "Titik kamera wajah terlalu dekat dengan titik kasir. Klik tepat di bawah kamera wajah, di meja kasir.");
+  }
   return {
     cashier,
+    facecam,
     staff: rects(o.staff, "Area staf"),
     exit: rects(o.exit, "Pintu keluar"),
     transition: rects(o.transition, "Area pindah kamera"),

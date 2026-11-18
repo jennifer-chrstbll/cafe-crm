@@ -297,6 +297,16 @@ export function LiveFrame({
               <ellipse cx={layout.cashier.x} cy={layout.cashier.y} rx={0.008} ry={0.008 / aspect} className="fill-success" />
             </g>
           )}
+          {layout?.facecam && (
+            <g>
+              {layout.cashier && (
+                <line x1={layout.facecam.x} y1={layout.facecam.y} x2={layout.cashier.x} y2={layout.cashier.y}
+                  className="stroke-violet-500" strokeDasharray="0.012 0.008" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              )}
+              <rect x={layout.facecam.x - 0.012} y={layout.facecam.y - 0.012 / aspect} width={0.024} height={0.024 / aspect}
+                className="fill-violet-500 stroke-white" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+            </g>
+          )}
           {shown && <rect {...rect({ x1: shown.a.x, y1: shown.a.y, x2: shown.b.x, y2: shown.b.y })} className="fill-white/20 stroke-white" strokeWidth={2} vectorEffect="non-scaling-stroke" />}
           {faces.map((f, i) => (
             <rect key={`f${i}`} x={f.box[0]} y={f.box[1]} width={f.box[2] - f.box[0]} height={f.box[3] - f.box[1]}

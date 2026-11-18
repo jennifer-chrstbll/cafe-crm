@@ -206,6 +206,22 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
             <div><dt className="text-muted-foreground">Pelanggan dikenali</dt><dd className="num font-semibold">{info.identities ?? 0}</dd></div>
           </>)}
           <div><dt className="text-muted-foreground">Versi · aktif</dt><dd className="font-semibold">{info.version ?? "–"} · {fmtUptime(info.uptime_s)}</dd></div>
+          {!face && (
+            <div className="col-span-2 sm:col-span-4">
+              <dt className="text-muted-foreground">Asosiasi otomatis (dua orang di kasir)</dt>
+              <dd className="font-semibold">
+                {(() => {
+                  const b = info.binding ?? {};
+                  const cams = Object.entries((b.facecam ?? {}) as Record<string, boolean>).filter(([, on]) => on).map(([id]) => id);
+                  if (!cams.length) return <span className="text-warning">Titik kamera wajah belum diatur (Tata Letak Kamera → Kamera wajah).</span>;
+                  const c = (b.calibration ?? {})[cams[0]] as { samples?: number; left_right?: boolean } | undefined;
+                  return c?.left_right
+                    ? <span className="text-success">Siap: kalibrasi selesai ({c.samples} contoh).</span>
+                    : <span>Belajar: {c?.samples ?? 0} contoh. Sementara itu, dua orang berdampingan di kasir masih ditanyakan ke kasir.</span>;
+                })()}
+              </dd>
+            </div>
+          )}
           <div className="col-span-2 sm:col-span-4">
             <dt className="text-muted-foreground">Kamera real-time</dt>
             <dd className={cn("font-semibold", info.live?.url ? "text-success" : "text-warning")}>

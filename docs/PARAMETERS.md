@@ -20,6 +20,7 @@ dijelaskan alasannya, bisa diubah. Untuk skripsi, sebutkan jenisnya dengan jujur
 | τ = **0,40** (kemiripan cosine) | **Kalibrasi** | Nilai terkecil dengan FAR open-set ≤ 1 % (target proposal) = 0,38 pada dataset; 0,40 dipakai sebagai margin. `scripts/evaluate.py`, ulangi dengan peserta uji lapangan |
 | Margin **0,08** ke pelanggan kedua | **Kalibrasi** | Uji rasio/margin kekhasan (sejenis *ratio test*, Lowe 2004): wajah yang hampir sama mirip dengan dua orang ditolak. Pada dataset: 0 % salah orang |
 | ≥ **60 %** frame terbaik setuju | **Desain** | Mayoritas (3 dari 5) |
+| Lebar wajah minimal **7,5 %** lebar gambar (48 px, ±1,6 m) untuk mengenali; **10 %** (±1,2 m) untuk mendaftar | **Evaluasi** | Foto dataset diperkecil ke ukuran itu (ditambah noise, kompresi MJPEG, salah posisi landmark). Pada 48 px, 95 % skor pemilik wajah ≥ 0,58, sedangkan skor orang lain tertinggi tidak pernah > 0,38 di ukuran mana pun, jadi τ = 0,40 tetap aman. Pendaftaran tetap dekat supaya template berkualitas |
 | Sesi ≤ **10 frame / 2,5 detik** | **Desain** | Target latensi proposal ≤ 3 detik |
 | Keputusan dini setelah **4 frame** (≥ 3 frame berbeda) | **Literatur** + evaluasi | Keputusan sekuensial: berhenti mengumpulkan bukti begitu bukti sudah jauh melampaui ambang (Wald, 1945). Syaratnya lebih ketat dari aturan normal: semua frame setuju, skor ≥ τ + 0,10, margin ≥ 0,16. Pada dataset: terpakai di 92,7 % sesi, 0 salah orang, 0 dari 4.000 orang asing diterima |
 
@@ -60,6 +61,9 @@ tersimpan di database.
 | Rumus *P* = *L* / (Σ*L* + *L₀*) | **Literatur** | Probabilistic data association (Bar-Shalom & Fortmann, 1988) |
 | σ_d = **0,25** tinggi badan (≈ 0,43 m) | **Desain**, berbasis literatur | Orang dalam antrean berjarak sekitar zona personal 0,45–1,2 m (Hall, 1966). Dengan 0,25: orang yang antre ±0,9 m di belakang tidak membuat ragu (P ≈ 0,88), orang yang lebih dekat dari ±0,6 m membuat ragu → kasir ditanya |
 | P ≥ **0,85**, **2×** berturut-turut | **Desain** | Mengutamakan "tidak boleh salah orang"; ubah di `.env` Pi (`BIND_P_MIN`, `BIND_CONFIRM`) |
+| Titik kamera wajah: badan **terdekat** ke kamera wajah | **Desain**, dari aturan UNO Q | UNO Q hanya memutuskan bila wajah utama ≥ **1,3×** lebih lebar dari wajah lain, jadi pemiliknya orang yang paling dekat ke kamera wajah. Kelunakan s = 0,10 tinggi badan |
+| Kalibrasi kiri/kanan dan jarak, ≥ **5** contoh | **Literatur** (kuadrat terkecil) + evaluasi | Posisi wajah di kamera kasir (α, w) dipetakan ke sudut dan jarak badan dari kamera wajah: sudut ≈ k·α, jarak ≈ c/w (model kamera lubang jarum: lebar wajah berbanding terbalik dengan jarak). Dipelajari dari pengikatan tanpa keraguan dan pilihan manual kasir. Simulasi 2.000 pasangan: 99,7 % otomatis, 0 % salah |
+| Kasir ditanya bila ragu **2** event berturut-turut | **Desain** | Event berikutnya datang dalam ±2,5 detik; biasanya posisi orang sudah jelas |
 
 ## Rekomendasi
 

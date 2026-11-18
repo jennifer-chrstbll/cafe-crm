@@ -125,6 +125,7 @@ export interface CameraEntry {
 export interface Rect { x1: number; y1: number; x2: number; y2: number }
 export interface CameraLayout {
   cashier?: { x: number; y: number; r: number } | null;
+  facecam?: { x: number; y: number } | null;
   staff?: Rect[];
   exit?: Rect[];
   transition?: Rect[];
