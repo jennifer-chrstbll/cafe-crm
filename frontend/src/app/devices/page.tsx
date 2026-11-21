@@ -252,6 +252,23 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
                 : "Belum tersedia (perbarui program perangkat)."}
             </dd>
           </div>
+          {d.online && info.live?.lan && info.live?.token && (
+            <div className="col-span-2 sm:col-span-4">
+              <dt className="text-muted-foreground">Tampilan lokal untuk merekam (lewat Wi-Fi/hotspot yang sama, tanpa kuota internet)</dt>
+              <dd className="mt-1 flex flex-wrap gap-2">
+                {(face ? ["face"] : (info.cameras ?? []).map((c: { id: string }) => c.id)).map((cam: string) => {
+                  const title = face ? "Kamera wajah" : cams?.names?.[d.device_id]?.[cam] || `Kamera area ${cam.replace("CAM_", "")}`;
+                  const href = `${info.live.lan}/lihat?cam=${encodeURIComponent(cam)}&token=${encodeURIComponent(info.live.token)}&name=${encodeURIComponent(title)}`;
+                  return (
+                    <a key={cam} href={href} target="_blank" rel="noreferrer"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium hover:bg-muted">
+                      <Eye className="h-4 w-4" /> {title}
+                    </a>
+                  );
+                })}
+              </dd>
+            </div>
+          )}
         </dl>
 
         <div className="flex flex-wrap gap-2">

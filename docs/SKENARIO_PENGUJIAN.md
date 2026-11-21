@@ -89,7 +89,7 @@ pindah kamera bisa disambungkan (D1).
 
 ---
 
-## 1.4 Memasang dua kamera area (multi-kamera)
+### 1.4 Memasang dua kamera area (multi-kamera)
 
 Satu Raspberry Pi 5 menangani **dua** webcam USB (CAM_1 dan CAM_2). Kabel USB yang pendek
 diatasi dengan menaruh **Pi-nya** di atas, bukan memanjangkan kabel kamera:
