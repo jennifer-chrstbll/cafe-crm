@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Cpu, Eye, Power, RefreshCw, Stethoscope, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Cpu, Eye, LayoutGrid, Power, RefreshCw, Stethoscope, XCircle } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader, Panel, Pill } from "@/components/app/bits";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
@@ -321,6 +321,51 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
   );
 }
 
+/** All local camera views (both devices) in ONE window, for screen recording. The page is served by a
+ *  device over the cafe Wi-Fi (http), so a normal browser window shows "Not secure"; Chrome's app mode
+ *  (--app) opens it without any address bar. */
+function AllCamerasWindow({ devices, cams }: { devices: Device[]; cams: CamerasResponse | null }) {
+  type Src = { u: string; c: string; t: string; n: string };
+  const list: Src[] = [];
+  const live = (d: Device) => (d.info as { live?: { lan?: string; token?: string } } | undefined)?.live;
+  for (const d of [...devices].sort((a, b) => (a.kind === "facerec" ? 1 : 0) - (b.kind === "facerec" ? 1 : 0))) {
+    const l = live(d);
+    if (!d.online || !l?.lan || !l.token) continue;
+    if (d.kind === "facerec") list.push({ u: l.lan, c: "face", t: l.token, n: "Kamera wajah" });
+    else for (const c of ((d.info as { cameras?: { id: string }[] }).cameras ?? []))
+      list.push({ u: l.lan, c: c.id, t: l.token, n: cams?.names?.[d.device_id]?.[c.id] || `Kamera area ${c.id.replace("CAM_", "")}` });
+  }
+  if (list.length < 2) return null;
+  const url = `${list[0].u}/lihat?src=${encodeURIComponent(JSON.stringify(list)).replace(/'/g, "%27")}`;
+  const command = `Start-Process chrome '--app=${url}'`;
+  function open() {
+    const sh = window.screen as Screen & { availLeft?: number; availTop?: number };
+    const h = sh.availHeight - 64;
+    const w = Math.min(Math.round(sh.availWidth / 3), Math.round(((h / list.length) * 4) / 3));
+    const win = window.open(url, "lokal-semua", `popup=yes,width=${w},height=${h},left=${(sh.availLeft ?? 0) + sh.availWidth - w - 16},top=${sh.availTop ?? 0}`);
+    win?.focus();
+  }
+  async function copy() {
+    try { await navigator.clipboard.writeText(command); toast.success("Perintah disalin. Tempel di PowerShell laptop ini, lalu Enter."); }
+    catch { toast.error("Tidak bisa menyalin. Pakai tombol Buka."); }
+  }
+  return (
+    <Panel className="space-y-3">
+      <div>
+        <h2 className="font-semibold">Semua kamera dalam 1 jendela (untuk merekam)</h2>
+        <p className="text-sm text-muted-foreground">
+          {list.length} kamera, lewat Wi-Fi/hotspot yang sama tanpa kuota internet. Tanpa bar alamat: salin perintah, tempel di
+          PowerShell, lalu taruh jendelanya di kanan layar. Buka ulang setelah perangkat dimulai ulang (token baru).
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="lg" onClick={copy}><Copy /> Salin perintah (tanpa bar alamat)</Button>
+        <Button size="lg" variant="outline" onClick={open}><LayoutGrid /> Buka di jendela biasa</Button>
+      </div>
+    </Panel>
+  );
+}
+
 export default function DevicesPage() {
   const devices = useApi<Device[]>("/devices", { interval: 10_000 });
   const cams = useApi<CamerasResponse>("/cameras");
@@ -334,6 +379,7 @@ export default function DevicesPage() {
             text="Nyalakan Arduino UNO Q dan Raspberry Pi. Setelah programnya berjalan dan tersambung ke internet, perangkat muncul di sini dalam 10 detik." />
         ) : (
           <div className="space-y-4">
+            <AllCamerasWindow devices={devices.data} cams={cams.data} />
             {devices.data.map((d) => <DeviceCard key={d.device_id} d={d} cams={cams.data} reloadCams={cams.reload} devices={devices.data!} />)}
           </div>
         )}
