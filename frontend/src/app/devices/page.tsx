@@ -261,6 +261,20 @@ function DeviceCard({ d, cams, reloadCams, devices }: { d: Device; cams: Cameras
                   const href = `${info.live.lan}/lihat?cam=${encodeURIComponent(cam)}&token=${encodeURIComponent(info.live.token)}&name=${encodeURIComponent(title)}`;
                   return (
                     <a key={cam} href={href} target="_blank" rel="noreferrer"
+                      title="Buka sebagai jendela sendiri di kolom kanan layar (klik dua kali di gambar: penuhi jendela)"
+                      onClick={(e) => {
+                        // Own app-like window (no tabs or bookmark bar), stacked in the right column of the
+                        // screen: camera 1 top, camera 2 middle, face camera bottom. The CRM stays on the left.
+                        const slot = face ? 2 : Math.min(1, Math.max(0, Number(cam.replace("CAM_", "")) - 1 || 0));
+                        const sh = window.screen as Screen & { availLeft?: number; availTop?: number };
+                        const outerH = Math.floor(sh.availHeight / 3);
+                        const h = outerH - 64;                       // minus the window title + address bar
+                        const w = Math.round((h * 4) / 3);           // camera pictures are 4:3
+                        const left = (sh.availLeft ?? 0) + sh.availWidth - w - 16;
+                        const top = (sh.availTop ?? 0) + slot * outerH;
+                        const win = window.open(href, `lokal-${d.device_id}-${cam}`, `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
+                        if (win) { e.preventDefault(); win.focus(); }
+                      }}
                       className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium hover:bg-muted">
                       <Eye className="h-4 w-4" /> {title}
                     </a>
