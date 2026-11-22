@@ -334,7 +334,7 @@ export function LiveFrame({
         <span key={`l${p.id}`} className={cn("pointer-events-none absolute -translate-y-full rounded px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-white",
             p.staff ? "bg-warning" : p.customer_id ? "bg-success" : "bg-info")}
           style={{ left: `${p.box[0] * 100}%`, top: `${p.box[1] * 100}%` }}>
-          {p.staff ? "Staf" : p.customer_id ? (p.name || "Pelanggan") + (p.mode === "MANUAL" ? " ✓" : "") : "?"}
+          {p.staff ? "Staf" : p.customer_id ? (p.name || "Pelanggan") + (p.unsure ? "?" : "") + (p.mode === "MANUAL" ? " ✓" : "") : "?"}
         </span>
       ))}
       {faceStatus && (

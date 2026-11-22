@@ -85,3 +85,25 @@ tersimpan di database.
 - Wald, A. (1945). Sequential tests of statistical hypotheses. *Annals of Mathematical Statistics*, 16(2), 117–186.
 - Lowe, D. G. (2004). Distinctive image features from scale-invariant keypoints. *International Journal of Computer Vision*, 60(2), 91–110.
 - Referensi rekomendasi: lihat `docs/RECOMMENDATION.md`.
+
+
+## Identitas di kafe sungguhan (23-11-2026)
+
+Diubah setelah uji rumah (nama hilang saat pindah kamera, duduk, setengah badan) dan diverifikasi dengan
+231 tes, Monte Carlo keramaian, dan rekaman toko asli. Semua bisa dimatikan lewat `.env` Pi.
+
+| Parameter | Nilai | Arti | Dasar |
+|---|---|---|---|
+| SWAP_GATING | 1 | Nama tidak dicabut karena rupa satu frame; setelah orang saling menutupi (> CROWD_MARGIN = 20 % kotak) nama dibagikan ulang lewat penugasan Hungarian atas rata-rata 4 rupa bersih | Kuhn 1955; Bewley 2016; Wojke 2017 |
+| Label "Nama?" | — | Tubuh bernama yang baru tertutup orang lain dan belum terbukti lagi | transparansi |
+| CONTESTED_ONLY_VETO | 1 | Veto rupa/lonjakan ukuran di tracker hanya bila ada orang lain bersinggungan (orang duduk sendirian tetap satu ID) | SORT/DeepSORT |
+| REVIVE_REACH_CHECK | 1 | Nomor yang hilang hanya hidup lagi pada tubuh yang terjangkau berjalan (1 tinggi badan + 0,25/frame dari prediksi Kalman); tidak dari tepi gambar | ditemukan di rekaman toko |
+| OCCLUSION_AWARE, OCCLUDED_HEIGHT_RATIO | 1, 0,70 | Kotak menyusut / terpotong tepi = tertutup: bukan bukti | ByteTrack/BoT-SORT |
+| STITCH_GAP_SEC | 2 | ID pecah sesaat karena tertutup disambung (tubuh baru di dalam kotak terakhir, pasangan tunggal, baru muncul setelah ia hilang) | TrackletNet 2019 |
+| Galeri rupa bersih | 12 pose | Diambil hanya saat tidak tertutup siapa pun | Ristani & Tomasi 2018 |
+| CROSS_CAM_WINDOW_SEC | 30 | Nama ikut pindah kamera (jalan pelan pun terjangkau) | Javed 2008 |
+| CROSS_CAM_MIN_SIM / ZONE | 0,55 / 0,42 | Ambang rupa antar kamera; 0,42 bila hilang di Area pindah kamera 1 DAN muncul di Area pindah kamera 2 | Javed 2008 |
+| TRANSITION_TIME_WINDOW_SEC | 15 | Nomor ID sama antar kamera | — |
+| DOOR_RETURN, DOOR_RETURN_MIN_SIM | 1, 0,60 | Keluar lewat pintu lalu masuk lagi lewat pintu dalam batas "kembali dalam" (30 menit; mode uji 1 menit): nama kembali, kunjungan yang sama dibuka lagi | proses bisnis kafe |
+| LOST_RETURN_MIN_SIM | 0,62 | Muncul lagi setelah lama tertutup (≤ 30 dtk) | — |
+| Rupa belum pernah bersih | ambang naik ke 0,72 | Pelanggan yang selalu tertutup orang lain tidak dipulihkan dari rupa yang tercemar | ditemukan di rekaman toko |

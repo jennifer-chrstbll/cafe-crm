@@ -146,6 +146,8 @@ export interface FramePerson {
   name: string;
   staff: boolean;
   mode: "AUTO" | "MANUAL" | null;
+  /** Sempat tertutup orang lain dan belum terbukti lagi: tampil "Nama?". */
+  unsure?: boolean;
   score: number | null;
 }
 export interface FrameResponse {
