@@ -28,7 +28,10 @@ export const PUT = route(async (req: NextRequest) => {
   }
   if (b.visits) {
     const { exit_timeout_minutes: e, max_open_hours: h } = b.visits;
+    const r = b.visits.reopen_minutes ?? 30;
     if (!(e >= 1 && e <= 240) || !(h >= 1 && h <= 24)) throw new ApiError(422, "Batas kunjungan tidak valid.");
+    if (!(r >= 1 && r <= 240)) throw new ApiError(422, "Batas kembali 1–240 menit.");
+    b.visits = { exit_timeout_minutes: Math.round(e), max_open_hours: Math.round(h), reopen_minutes: Math.round(r) };
   }
   return json(await saveSettings(b));
 });

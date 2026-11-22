@@ -20,6 +20,7 @@ export interface Menu {
   category: MenuCategory;
   price: number;
   is_active: boolean;
+  image_url?: string | null;
 }
 
 export interface CartItem {
@@ -197,7 +198,7 @@ export interface Device {
 export interface AppSettings {
   cafe: { name: string; floors: { floor: number; capacity: number }[] };
   devices: { cashier_camera_id: string };
-  visits: { exit_timeout_minutes: number; max_open_hours: number };
+  visits: { exit_timeout_minutes: number; max_open_hours: number; reopen_minutes: number };
   tracking: { visit_gap_sec: number };
   network: { pi_face_mode: "auto" | "manual" | "env"; pi_face_url: string };
   privacy: { retention_days: number };

@@ -16,5 +16,6 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|login|_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|ico|jpg|webp)$).*)"],
+  // PWA files (service worker, manifest, offline page, icons) must load without a session.
+  matcher: ["/((?!api|login|_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|offline\\.html|icons/|.*\\.(?:png|svg|ico|jpg|webp)$).*)"],
 };

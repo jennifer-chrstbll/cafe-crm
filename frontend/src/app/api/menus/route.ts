@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const GET = route(async (req: NextRequest) => {
   const s = await requireUser(req);
   const all = req.nextUrl.searchParams.get("all") === "1" && s.role !== "CASHIER";
-  let q = db().from("menu").select("menu_id, name, description, category, price, is_active")
+  let q = db().from("menu").select("menu_id, name, description, category, price, is_active, image_url")
     .order("category").order("name");
   if (!all) q = q.eq("is_active", true);
   const { data, error } = await q;

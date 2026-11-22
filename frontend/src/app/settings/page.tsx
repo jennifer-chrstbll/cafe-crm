@@ -90,7 +90,11 @@ function Cafe({ s, save }: { s: AppSettings; save: (p: Partial<AppSettings>) => 
           <Field label="Cadangan: tutup kunjungan bila tidak ada kabar pelacakan/wajah selama (menit)" hint="Dipakai bila Pi mati atau nama tidak pernah terpasang. Rekomendasi 15 (batas sesi optimal 11–15 menit, Göker & He 2000).">
             <Input inputMode="numeric" value={v.exit_timeout_minutes} onChange={(e) => setV({ ...v, exit_timeout_minutes: n(e.target.value) })} />
           </Field>
-          <Field label="Kunjungan paling lama (jam)" hint="Samakan dengan VISIT_MAX_OPEN_HOURS di .env UNO Q dan Pi.">
+          <Field label="Kembali dalam (menit) = kunjungan yang sama"
+            hint="Operasional: 30 (batas sesi, Catledge & Pitkow 1995). Saat pengujian boleh diturunkan sementara (mis. 3) agar aturan ini bisa dibuktikan tanpa menunggu; kembalikan ke 30 setelah uji. UNO Q dan Pi ikut dalam ±5 detik.">
+            <Input inputMode="numeric" value={v.reopen_minutes} onChange={(e) => setV({ ...v, reopen_minutes: n(e.target.value) })} />
+          </Field>
+          <Field label="Kunjungan paling lama (jam)" hint="UNO Q dan Pi ikut dalam ±5 detik.">
             <Input inputMode="numeric" value={v.max_open_hours} onChange={(e) => setV({ ...v, max_open_hours: n(e.target.value) })} />
           </Field>
         </div>

@@ -73,10 +73,16 @@ export function MenuGrid({ menus, loading, error, onRetry, qtyById, onAdd }: {
                 return (
                   <li key={m.menu_id}>
                     <button type="button" onClick={() => onAdd(m)}
-                      className={cn("relative flex h-24 w-full flex-col justify-between rounded-xl border-2 bg-card p-3 text-left transition-[transform,border-color] active:scale-[0.97]",
+                      className={cn("relative flex h-24 w-full items-center gap-3 rounded-xl border-2 bg-card p-2.5 text-left transition-[transform,border-color] active:scale-[0.97]",
                         qty ? "border-primary" : "border-transparent shadow-sm hover:border-primary/30")}>
-                      <span className="line-clamp-2 pr-6 text-sm font-semibold leading-snug">{m.name}</span>
-                      <span className="num text-sm text-muted-foreground">{formatRupiah(m.price)}</span>
+                      {m.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={m.image_url} alt="" loading="lazy" className="h-[4.25rem] w-[4.25rem] shrink-0 rounded-lg object-cover" />
+                      )}
+                      <span className="flex h-full min-w-0 flex-1 flex-col justify-between py-0.5">
+                        <span className="line-clamp-2 pr-6 text-sm font-semibold leading-snug">{m.name}</span>
+                        <span className="num text-sm text-muted-foreground">{formatRupiah(m.price)}</span>
+                      </span>
                       {qty > 0 && (
                         <span className="num absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground"
                           aria-label={`${qty} di keranjang`}>{qty}</span>

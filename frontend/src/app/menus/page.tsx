@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, EyeOff, Pencil, Plus, Search } from "lucide-react";
+import { ClipboardList, EyeOff, ImageIcon, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { Field, PageHeader, Pill } from "@/components/app/bits";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/app/states";
@@ -12,11 +12,21 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useApi } from "@/hooks/useApi";
 import api, { errorMessage } from "@/services/api";
 import { cn } from "@/lib/utils";
+import { squareThumb } from "@/lib/image";
 import { CATEGORY_LABEL, formatRupiah } from "@/lib/format";
 import { Menu, MenuCategory } from "@/types";
 
 const CATS: MenuCategory[] = ["COFFEE", "NON_COFFEE", "FOOD", "DESSERT"];
 const empty = { name: "", category: "COFFEE" as MenuCategory, price: "", description: "" };
+
+/** Small square menu photo, or a neutral placeholder. */
+function Thumb({ url, size = "sm" }: { url?: string | null; size?: "sm" | "lg" }) {
+  const cls = size === "lg" ? "h-20 w-20" : "h-11 w-11";
+  return url
+    // eslint-disable-next-line @next/next/no-img-element
+    ? <img src={url} alt="" loading="lazy" className={cn(cls, "shrink-0 rounded-lg object-cover")} />
+    : <div className={cn(cls, "flex shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground")}><ImageIcon className="h-5 w-5" /></div>;
+}
 
 export default function MenusPage() {
   const menus = useApi<Menu[]>("/menus?all=1");
@@ -25,6 +35,8 @@ export default function MenusPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+  // Photo: data URL chosen in this dialog (uploaded on save), or "remove".
+  const [photo, setPhoto] = useState<string | "remove" | null>(null);
 
   const grouped = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -35,6 +47,7 @@ export default function MenusPage() {
   function openForm(m: Menu | null) {
     setEditing(m);
     setForm(m ? { name: m.name, category: m.category, price: String(m.price), description: m.description ?? "" } : empty);
+    setPhoto(null);
     setOpen(true);
   }
 
@@ -42,8 +55,11 @@ export default function MenusPage() {
     setBusy(true);
     try {
       const payload = { name: form.name, category: form.category, price: Number(form.price), description: form.description };
+      let id = editing?.menu_id;
       if (editing) await api.patch(`/menus/${editing.menu_id}`, payload);
-      else await api.post("/menus", payload);
+      else id = (await api.post<Menu>("/menus", payload)).data.menu_id;
+      if (id && photo === "remove") await api.delete(`/menus/${id}/image`);
+      else if (id && photo) await api.put(`/menus/${id}/image`, { data: photo });
       toast.success(editing ? "Menu diperbarui" : "Menu ditambahkan");
       setOpen(false); menus.reload();
     } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
@@ -79,6 +95,7 @@ export default function MenusPage() {
                 <ul className="divide-y rounded-xl border bg-card shadow-sm">
                   {g.items.map((m) => (
                     <li key={m.menu_id} className={cn("flex items-center gap-3 px-4 py-3", !m.is_active && "opacity-60")}>
+                      <Thumb url={m.image_url} />
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-2 font-medium">{m.name} {!m.is_active && <Pill tone="neutral">Disembunyikan</Pill>}</p>
                         {m.description && <p className="truncate text-sm text-muted-foreground">{m.description}</p>}
@@ -114,6 +131,26 @@ export default function MenusPage() {
             <Field label="Harga (Rp)" htmlFor="m-price">
               <Input id="m-price" inputMode="numeric" value={form.price ? Number(form.price).toLocaleString("id-ID") : ""}
                 onChange={(e) => setForm({ ...form, price: e.target.value.replace(/\D/g, "") })} placeholder="25.000" />
+            </Field>
+            <Field label="Gambar (opsional)">
+              <div className="flex items-center gap-3">
+                <Thumb url={photo === "remove" ? null : photo ?? editing?.image_url} size="lg" />
+                <div className="flex flex-wrap gap-2">
+                  <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm font-medium hover:bg-muted">
+                    <ImageIcon className="h-4 w-4" /> {photo && photo !== "remove" || editing?.image_url ? "Ganti gambar" : "Pilih gambar"}
+                    <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      try { setPhoto(await squareThumb(f)); } catch (err) { toast.error(errorMessage(err)); }
+                    }} />
+                  </label>
+                  {((photo && photo !== "remove") || (editing?.image_url && photo !== "remove")) && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setPhoto(editing?.image_url ? "remove" : null)}><Trash2 /> Hapus</Button>
+                  )}
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Dipotong persegi dan diperkecil otomatis (±20 KB) agar kasir tetap cepat.</p>
             </Field>
             <Field label="Deskripsi (opsional)" htmlFor="m-desc"><Input id="m-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
             <DialogFooter className="gap-2">

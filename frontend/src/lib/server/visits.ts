@@ -17,7 +17,6 @@ export interface ActiveVisit {
   track_id_aktif: string | null;
 }
 
-const VISIT_REOPEN_MIN = 30;   // same as VISIT_REOPEN_MIN on the devices
 
 export async function getActiveVisit(customerId: string): Promise<ActiveVisit | null> {
   if (customerId === GUEST_ID) return null; // every walk-in order is its own visit
@@ -40,7 +39,7 @@ export async function getOrCreateActiveVisit(customerId: string): Promise<Active
   const sb = db();
   if (customerId !== GUEST_ID) {
     const { data: vid, error } = await sb.rpc("get_or_create_visit", {
-      p_customer: customerId, p_max_open_hours: s.visits.max_open_hours, p_reopen_minutes: VISIT_REOPEN_MIN,
+      p_customer: customerId, p_max_open_hours: s.visits.max_open_hours, p_reopen_minutes: s.visits.reopen_minutes,
     });
     if (!error && vid) {
       const { data, error: e2 } = await sb.from("visits").select("visit_id, entry_time, track_id_aktif")
