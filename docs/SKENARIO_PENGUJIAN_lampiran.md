@@ -27,22 +27,22 @@ Kolom **Dasar** menjelaskan kenapa hasil itu yang diharapkan; nomor rujukan ada 
 
 | Kode | Hasil yang diharapkan | Dasar | Bukti |
 |---|---|---|---|
-| C1, C2 | ID tidak berganti/tertukar | ByteTrack: asosiasi deteksi skor tinggi dan rendah [6]; ganti ID dihitung seperti CLEAR-MOT [7] | rekaman (ID di label), pelacakan.csv |
+| C1, C2 | ID tidak berganti/tertukar; nama tidak berpindah ke orang lain (boleh tampil "Nama?" sesaat saat bersinggungan) | ByteTrack: asosiasi deteksi skor tinggi dan rendah [6]; ganti ID dihitung seperti CLEAR-MOT [7]. Nama tidak dicabut saat bersinggungan; setelah berpisah, siapa-yang-mana diputuskan dari beberapa pengamatan bersih (OSNet [8] + warna pakaian di kamera yang sama [30]) dengan penugasan Hungarian [31] | rekaman (ID dan nama di label), pelacakan.csv |
 | C3a (3 dtk) | ID sama | Track yang hilang disimpan 40 frame yang diproses (±5 dtk pada 7,6 FPS; ±10 dtk dengan 2 kamera) [6] | rekaman |
-| C3b (10 dtk) | ID sama atau ID baru dengan **nama dipulihkan** | Identitas dipulihkan lewat kemiripan penampilan (OSNet [8], ≥ 0,72) sampai 30 detik | rekaman, events.csv |
+| C3b (10 dtk) | ID sama atau ID baru dengan **nama dipulihkan** | Identitas dipulihkan lewat kemiripan penampilan beberapa pengamatan (OSNet [8], ≥ 0,62; 0,72 bila rupa bersihnya < 3) sampai 30 detik; ID tidak dihidupkan pada badan yang tak terjangkau dengan berjalan | rekaman, events.csv |
 | C3c (20 dtk) | Nama dipulihkan; kunjungan bisa tercatat LOST lalu dibuka lagi | Jeda kunjungan 15 detik (bagian 9) | events.csv, kunjungan.csv |
 | C4 | Tetap terlacak 10 menit, kunjungan tidak ditutup | Orang diam tetap terdeteksi tiap frame | events.csv |
 | C5 | Jumlah orang benar (± 1) | Hitungan per kamera | metrics.csv (`orang_CAM_*`), okupansi.csv + jumlah yang diucapkan |
 | C7 | A berlabel Staf, tidak dihitung pelanggan | Area staf di Tata Letak | rekaman |
 | C8 | Boleh tertukar → keterbatasan | Fitur penampilan mirip untuk pakaian mirip [8] | rekaman |
-| D1–D3 | ID dan nama sama setelah pindah kamera | Kamera dengan bidang pandang tumpang tindih: label konsisten di pita bersama [9]; jendela pindah 5 detik; kemiripan ReID ≥ 0,65 | events.csv (`PINDAH_KAMERA`), pelacakan.csv (`id_global`) |
+| D1–D3 | ID dan nama sama setelah pindah kamera | Kamera dengan bidang pandang tumpang tindih: label konsisten di pita bersama [9]; jendela ID 15 detik, kemiripan ReID ≥ 0,65. Bila ID baru, nama tetap dibawa: muncul ≤ 30 detik di kamera lain, ≥ 0,55 (0,42 bila lewat Area pindah kamera di kedua kamera) [32]; bertiga dibagi dengan Hungarian [31] | events.csv (`PINDAH_KAMERA`), pelacakan.csv (`id_global`) |
 | D4 | Boleh tidak tersambung → keterbatasan | Penampilan berubah total | rekaman |
 | E0, E1–E3c | Nama ke badan yang benar **otomatis**; salah pasang 0 | Asosiasi probabilistik P = L/(ΣL + L₀) [12], P ≥ 0,85, dua kali berturut-turut; badan terdekat ke kamera wajah; kalibrasi kiri/kanan dan jarak (kuadrat terkecil) setelah ±5 contoh. Simulasi 2.000 pasangan: 99,7 % otomatis, 0 % salah | events.csv (`IKAT_OTOMATIS`, `RAGU`, `TANYA_KASIR`) |
 | E3d | Kasir ditanya | Pembanding tanpa titik kamera wajah | events.csv (`TANYA_KASIR`) |
 | E4–E6 | Sesuai tombol kasir | Fitur manual | events.csv (`IKAT_MANUAL`, `LEPAS`) |
 | F1 | Ditutup EXIT_ZONE, jam keluar ≈ terlihat di rekaman | Zona pintu | kunjungan.csv + rekaman |
 | F2, F3 | 20 dtk → LOST; 8 dtk → tidak ditutup | Jeda 15 detik (bagian 9) | kunjungan.csv, events.csv |
-| F4 | Kembali sebelum batas → kunjungan sama dibuka lagi; sesudah batas → kunjungan baru | Batas sesi 30 menit [13], diuji dengan nilai skala 1 menit di kedua sisi batas [28] | kunjungan.csv |
+| F4 | Kembali sebelum batas → kunjungan sama dibuka lagi (nama kembali dari penampilan saat masuk lewat pintu, durasi termasuk waktu di luar, seperti pelanggan yang keluar merokok); sesudah batas → kunjungan baru | Batas sesi 30 menit [13], diuji dengan nilai skala 1 menit di kedua sisi batas [28]; nama hanya diberikan ke badan yang muncul di Pintu keluar, ≥ 0,60 | kunjungan.csv, events.csv |
 | F6 | TIMEOUT setelah batas cadangan sejak tanda terakhir (uji 2 menit; operasional 15 menit) | Batas sesi 11–15 menit [14]; diskalakan (bagian 9.1) | kunjungan.csv |
 
 ### 8.3 Kasir, rekomendasi, website, kinerja
@@ -50,9 +50,9 @@ Kolom **Dasar** menjelaskan kenapa hasil itu yang diharapkan; nomor rujukan ada 
 | Kode | Hasil yang diharapkan | Dasar | Bukti |
 |---|---|---|---|
 | G1 | Panel pelanggan muncul otomatis ≤ 3 detik setelah dikenali | Target latensi; batas respons yang terasa lancar ≤ 1 detik dan batas perhatian 10 detik [15] | rekaman |
-| G2 | Putaran 1–3: "Terlaris 30 hari" | Kurang dari 3 transaksi = *cold start*, pakai popularitas [17] | rekaman, ringkasan_pelanggan.csv |
-| G3 | Putaran 4–6: CF "Sering dibeli bersama ..." dari kelompok selera yang sama | Item-based CF, cosine [18][19] | rekaman, transaksi.csv |
-| G4 | Putaran 5–6: "Coba yang baru" | Pelanggan setia ≥ 5 kunjungan (dimensi *frequency* RFM [20]); kebaruan dan keberagaman [21][22] | rekaman |
+| G2 | Putaran 1–3: "Terlaris 30 hari" dengan urutan seperti tabel halaman putaran | Kurang dari 3 transaksi = *cold start*, pakai popularitas [17] | rekaman, ringkasan_pelanggan.csv |
+| G3 | Putaran 4–5: CF "Sering dibeli bersama ..." dengan menu, urutan, dan skor seperti bagian 9.3 | Item-based CF, cosine [18][19]; dihitung tangan di 9.3 | rekaman, transaksi.csv |
+| G4 | Putaran 5 (Putaran 4 bila sudah ≥ 5 kunjungan): "Coba yang baru" seperti bagian 9.3 | Pelanggan setia ≥ 5 kunjungan (dimensi *frequency* RFM [20]); kebaruan dan keberagaman [21][22] | rekaman |
 | G5 | Sapaan sesuai jenis pelanggan, berganti-ganti | Personalisasi sapaan | rekaman |
 | G6 | Tamu tanpa nama | Pelanggan Tamu | transaksi.csv |
 | G9 SUS | Skor ≥ 68 (rata-rata) | System Usability Scale [23], adaptasi Indonesia [24]; rata-rata acuan 68 [25] | lembar SUS |
@@ -72,8 +72,10 @@ diri dengan angka itu.
 | Buka lagi kunjungan | **30 menit** (uji: **1 menit**) | Literatur | Batas sesi 25,5 menit → 30 menit [13] | Diskalakan ke 1 menit (bagian 9.1); F4a kembali setelah 30 detik (sama), F4b setelah 2 menit (baru) |
 | Cadangan bila Pi mati | **15 menit** (uji: **2 menit**) | Literatur | Batas sesi 11–15 menit [14] | Diskalakan ke 2 menit (bagian 9.1) |
 | Simpan track hilang | **40 frame** (±5 dtk / ±10 dtk dengan 2 kamera) | Literatur + desain | Buffer track ByteTrack [6] | C3a 3 dtk, C3b 10 dtk |
-| Pulihkan nama | **30 detik**, kemiripan ≥ 0,72 | Desain | Re-identifikasi penampilan OSNet [8]; ≥ jeda kunjungan, sehingga orang yang tertutup tidak kehilangan nama | C3c 20 dtk |
-| Jendela pindah kamera | **5 detik**, kemiripan ≥ 0,65; pengaman "dua tempat" 3 detik | Desain + literatur | Label konsisten pada kamera tumpang tindih [9] | D2–D3 berjalan biasa |
+| Pulihkan nama | **30 detik**, kemiripan ≥ 0,62 (0,72 bila rupa bersih < 3) | Desain | Re-identifikasi penampilan OSNet [8]; ≥ jeda kunjungan, sehingga orang yang tertutup tidak kehilangan nama | C3c 20 dtk |
+| Jendela pindah kamera | ID: **15 detik**, ≥ 0,65; nama: **30 detik**, ≥ 0,55 (0,42 lewat Area pindah kamera di kedua kamera); pengaman "dua tempat" 3 detik | Desain + literatur | Label konsisten pada kamera tumpang tindih [9]; bukti waktu-tempat antar kamera [32] | D2–D3 berjalan biasa |
+| Kembali lewat pintu | Selama batas "kembali dalam" (**30 menit**, uji **1 menit** → jendela 60 detik), ≥ 0,60 | Proses bisnis kafe | Pelanggan yang keluar sebentar (merokok) tetap kunjungan yang sama | Blok E menunggu **≥ 70 detik** supaya tiap percobaan benar-benar asosiasi baru |
+| Siapa-yang-mana setelah bersinggungan | ≥ 4 pengamatan bersih, unggul ≥ 0,10 per nama yang dipindah; skor = OSNet + 0,7 × warna pakaian | Desain + literatur | Hungarian [31]; warna HSV badan atas/bawah [30] | C2, C5, D3 |
 | Asosiasi | P ≥ 0,85, **2 event** berturut-turut (±2,5 detik antar event); tanya kasir setelah **2 event ragu** (±5 detik) | Desain + literatur | PDA [12]; jarak personal 0,45–1,2 m [26] | E menunggu ±5 detik per percobaan |
 | Kalibrasi kamera wajah | ≥ **5** contoh tanpa keraguan | Literatur (kuadrat terkecil) + evaluasi | Simulasi 2.000 pasangan | Pendaftaran + putaran memberi ±15 contoh |
 | Rekomendasi CF | ≥ **3** transaksi | Proposal + literatur | *Cold start* [17] | Putaran 4 |
@@ -109,10 +111,68 @@ Jeda kunjungan 15 detik, ambang wajah, ambang asosiasi, jumlah transaksi (3) dan
 |---|---|---|
 | Kamera wajah (UNO Q) | Di sisi kasir pada meja, dekat layar/mesin kasir tempat pelanggan memandang. Tinggi lensa ±1,3–1,5 m (setinggi wajah), sedikit menunduk. Pelanggan berdiri ±0,6–1,0 m dari lensa (lebar meja + satu langkah) | Citra wajah frontal dan cahaya merata [11]; dikenali sampai ±1,6 m (evaluasi bagian 8.1); terlalu dekat (< 0,4 m) wajah terpotong tepi |
 | Titik kasir dan antrean | Pelanggan yang membayar ±0,8 m dari kamera; yang berikutnya menunggu ±1,2 m di belakangnya | Jarak personal 0,45–1,2 m [26]; aturan wajah utama 1,3× menolak wajah kedua yang hampir sama dekat |
-| Kamera area (Pi) | Tinggi ±2,5–3 m, menunduk ±30–45°, seluruh badan (kepala sampai kaki) terlihat di area antrean, kasir, dan pintu. Lebar area yang diliput per kamera ≤ ±10 m pada 640 px | Kerapatan piksel tingkat *Observation* ±62,5 px/m untuk memantau orang [29]; titik kaki dipakai untuk asosiasi dan zona |
+| Kamera area (Pi) | Tinggi ±2–3 m (uji lab: ±2 m di atas proyektor), menunduk ±25–40°, dari sudut ruangan memandang menyerong, seluruh badan (kepala sampai kaki) terlihat di area antrean, kasir, dan pintu. Lebar area yang diliput per kamera ≤ ±10 m pada 640 px | Kerapatan piksel tingkat *Observation* ±62,5 px/m untuk memantau orang [29] (ditentukan jarak dan lebar pandang, bukan tinggi); titik kaki dipakai untuk asosiasi dan zona. Kamera lebih rendah membuat orang lebih sering saling menutupi; ditangani oleh pelacakan yang sadar halangan (bagian 8.2) |
 | Dua kamera | Bidang pandang tumpang tindih ±1 m; zona pindah kamera digambar di pita itu pada kedua kamera | Label konsisten pada kamera tumpang tindih [9] |
 
 Jarak 2,0 m pada uji B4a **bukan** posisi normal pelanggan; itu hanya untuk mengukur batas jangkauan.
+
+### 9.3 Skenario rekomendasi: pesanan dan hasil yang harus muncul
+
+Pesanan Putaran 1–5 **dirancang** supaya perhitungan *collaborative filtering* (CF) terlihat jelas dengan hanya 3 pelanggan terdaftar (P1–P3) + S1. Tiga "selera" dibuat sengaja saling bersinggungan:
+
+- **P1 pecinta kopi**: Cappuccino (+ Croissant);
+- **P2 kopi + makanan manis**: Cappuccino + Tiramisu/Cheesecake (P2 menghubungkan P1 dan P3);
+- **P3 non-kopi + makanan manis**: Matcha Latte + Cheesecake;
+- **S1** tamu (Putaran 1–3: hanya ikut menghitung *terlaris*, tidak masuk CF), didaftarkan di Blok E.
+
+Item-based CF menganggap dua menu "mirip" bila dibeli oleh **orang yang sama** [18]. P1 dan P2 sama-sama membeli Cappuccino, jadi menu lain milik P2 (Tiramisu, Cheesecake) menjadi rekomendasi untuk P1, dan sebaliknya.
+
+**Pesanan (1 porsi per menu):**
+
+| Putaran | P1 | P2 | P3 | S1 |
+|---|---|---|---|---|
+| 1 | Cappuccino + Croissant | Cappuccino + Tiramisu | Matcha Latte + Cheesecake | Americano (tamu) |
+| 2 | Cappuccino | Cappuccino + Cheesecake | Matcha Latte | Americano (tamu) |
+| 3 | Cappuccino + Croissant | Cappuccino + Tiramisu | Matcha Latte + Cheesecake | Mocha (tamu) |
+| 4 | Tiramisu | Croissant | Tiramisu | Cappuccino |
+| 5 | Chocolate | Cafe Latte | Chicken Sandwich | Tiramisu |
+
+Putaran 4: tiap peserta memesan **rekomendasi nomor 1**; Putaran 5: **"Coba yang baru" nomor 1** (S1: terlaris nomor 1). Dengan begitu dibuktikan juga bahwa daftar **berubah** mengikuti pesanan yang diterima.
+
+**Matriks setelah Putaran 3** (r = ln(1 + jumlah), hanya pelanggan terdaftar):
+
+| | Cappuccino | Croissant | Tiramisu | Cheesecake | Matcha Latte |
+|---|---|---|---|---|---|
+| P1 | 3× → 1,386 | 2× → 1,099 | – | – | – |
+| P2 | 3× → 1,386 | – | 2× → 1,099 | 1× → 0,693 | – |
+| P3 | – | – | – | 2× → 1,099 | 3× → 1,386 |
+
+**Contoh hitung tangan, P1 di Putaran 4** (riwayat: Cappuccino 3× → 1,386; Croissant 2× → 1,099; ΣW = 2,485):
+
+- ‖Cappuccino‖ = √(1,386² + 1,386²) = 1,961; ‖Tiramisu‖ = 1,099 (hanya P2); ‖Cheesecake‖ = √(0,693² + 1,099²) = 1,299.
+- sim(Tiramisu, Cappuccino) = (1,099 × 1,386) / (1,099 × 1,961) = **0,707**; sim(Tiramisu, Croissant) = 0 (tidak ada yang membeli keduanya).
+- skor(Tiramisu) = (0,707 × 1,386 + 0 × 1,099) / 2,485 = **0,394**
+- sim(Cheesecake, Cappuccino) = (0,693 × 1,386) / (1,299 × 1,961) = 0,377 → skor(Cheesecake) = 0,377 × 1,386 / 2,485 = **0,210**
+- Matcha Latte, Chocolate, dll.: sim = 0 dengan riwayat P1 → tidak punya skor CF. Slot ke-3 diisi menu **terlaris 30 hari** yang belum pernah dibeli P1: Matcha Latte (3 porsi).
+- Alasan yang tampil = kontributor terbesar: "Sering dibeli bersama Cappuccino".
+
+**Hasil yang harus tampil** (sama dengan tabel di halaman Putaran 4 dan 5):
+
+| Putaran | Peserta | Rekomendasi (skor CF · alasan) | Coba yang baru |
+|---|---|---|---|
+| 4 | P1 | Tiramisu (0,39 · bersama Cappuccino); Cheesecake (0,21 · bersama Cappuccino); Matcha Latte (terlaris) | Chocolate; Cafe Latte; Chicken Sandwich |
+| 4 | P2 | Croissant (0,49 · bersama Cappuccino); Matcha Latte (0,18 · bersama Cheesecake); Americano (terlaris) | Chicken Sandwich; Chocolate; Cafe Latte |
+| 4 | P3 | Tiramisu (0,20 · bersama Cheesecake); Cappuccino (0,17 · bersama Cheesecake); Croissant (0,13 · bersama Cheesecake) | Cafe Latte; Chicken Sandwich; Chocolate |
+| 4 | S1 | Cappuccino (terlaris); Tiramisu (terlaris); Cheesecake (terlaris) | – |
+| 5 | P1 | Cheesecake (0,43 · bersama Tiramisu); Matcha Latte (0,10 · bersama Tiramisu); Americano (terlaris) | Chocolate; Cafe Latte; Chicken Sandwich |
+| 5 | P2 | Chocolate (0,52 · bersama Cappuccino); Matcha Latte (0,28 · bersama Cheesecake); Americano (terlaris) | Cafe Latte; Chicken Sandwich; Mocha |
+| 5 | P3 | Cafe Latte (0,35 · bersama Cheesecake); Cappuccino (0,30 · bersama Tiramisu); Croissant (0,27 · bersama Tiramisu) | Chicken Sandwich; Mocha; Chocolate |
+| 5 | S1 | Tiramisu (terlaris); Cheesecake (terlaris); Croissant (terlaris) | – |
+
+Yang dibuktikan: (1) P1–P3 memakai CF tepat setelah 3 transaksi, S1 tetap *cold start*; (2) rekomendasi datang dari pelanggan lain yang seleranya bersinggungan (P1↔P2 lewat Cappuccino, P2↔P3 lewat Cheesecake); (3) setelah P1 menerima Tiramisu, Cheesecake naik dari 0,21 ke 0,43 karena P3 yang juga membeli Tiramisu menyukai Cheesecake; (4) "Coba yang baru" memilih kategori yang belum pernah dipesan (P1: Chocolate, kategori non-kopi) [21][22].
+
+**Kenapa hasilnya pasti.** Model dibangun ulang setiap kali jumlah/waktu pesanan terakhir berubah (berlaku di semua server Vercel), dan nilai seri selalu diurutkan menurut nama menu. Urutan di atas sudah diuji terhadap kode website yang sebenarnya (`frontend/src/__tests__/recommendation_uji.test.ts`, lulus) dan dihitung ulang terpisah dengan `scripts/simulasi_rekomendasi_uji.py`. Bila ada pesanan berbeda di hari uji, ubah daftar di skrip itu lalu jalankan untuk mendapat hasil yang seharusnya.
+
 
 ## 10. Cara menghitung hasil
 
@@ -131,6 +191,7 @@ Jarak 2,0 m pada uji B4a **bukan** posisi normal pelanggan; itu hanya untuk meng
 | MAE durasi kunjungan | rata-rata \|durasi CRM − durasi sebenarnya\| | sama |
 | Alasan keluar benar | EXIT_ZONE/LOST/TIMEOUT sesuai kejadian / semua kunjungan | kunjungan.csv |
 | Strategi rekomendasi benar | strategi sesuai jumlah transaksi / semua kunjungan | rekaman + ringkasan_pelanggan.csv |
+| Rekomendasi tepat hitungan | kunjungan yang daftarnya sama persis dengan 9.3 / semua kunjungan P1–P3 & S1 | rekaman (panel Kasir) |
 | SUS | (Σ(skor ganjil − 1) + Σ(5 − skor genap)) × 2,5 [23] | lembar SUS |
 
 **Catatan statistik.** Dengan 6 orang, jumlah percobaan terbatas. Contohnya 60 percobaan orang asing
@@ -153,7 +214,7 @@ Setelah uji, jalankan `scripts/gap_threshold.py` di Pi untuk menghitung jeda kun
 | Pelacakan 1–5 orang | ≤ 1 ganti ID per orang per 5 menit |
 | Pindah kamera (berjalan melewati pita) | ≥ 80 % ID sama |
 | Kunjungan | Selisih jam keluar ≤ 20 detik; alasan keluar benar ≥ 90 % |
-| Rekomendasi | Strategi sesuai jumlah transaksi pada semua kunjungan |
+| Rekomendasi | Strategi sesuai jumlah transaksi pada semua kunjungan; daftar (menu dan urutan) sama dengan bagian 9.3 / tabel halaman putaran |
 | Ketahanan | Tidak ada data hilang; pulih sendiri |
 | Kegunaan kasir | SUS ≥ 68 |
 
@@ -164,7 +225,9 @@ Setelah uji, jalankan `scripts/gap_threshold.py` di Pi untuk menghitung jeda kun
 - Pakaian sama atau berganti jaket bisa membuat ID tertukar atau tidak tersambung antar kamera (C8, D4).
 - Pita tumpang tindih yang sempit menurunkan keberhasilan pindah kamera. Pada video uji dengan pita
   ±15 % lebar gambar, ID yang sama di pita bersama ±42 %; pada uji lab pita dibuat ±1 m.
-- Uji dilakukan di lab dengan 6 orang (keramaian paling banyak ±5 orang dalam gambar); cahaya, tinggi kamera, dan keramaian kafe sungguhan bisa berbeda.
+- Uji dilakukan di lab dengan 6 orang (keramaian paling banyak ±5 orang dalam gambar); cahaya, tinggi kamera (lab ±2 m), dan keramaian kafe sungguhan bisa berbeda.
+- Saat beberapa orang terus saling menutupi, siapa yang mana baru bisa dipastikan setelah mereka berpisah (label "Nama?" sementara).
+- Rekomendasi di uji lab memakai data kecil yang dirancang (3 pelanggan); kualitas rekomendasi (HitRate) diukur dari data transaksi sungguhan dengan `scripts/evaluate_recommender.py`.
 - Jumlah percobaan kecil (lihat catatan statistik di bagian 10).
 
 ## 13. Lembar
@@ -230,3 +293,6 @@ Skala 1 (sangat tidak setuju) sampai 5 (sangat setuju). Adaptasi bahasa Indonesi
 27. Hanley, J. A., & Lippman-Hand, A. (1983). If nothing goes wrong, is everything all right? Interpreting zero numerators. *JAMA*, 249(13), 1743–1745.
 28. Myers, G. J., Sandler, C., & Badgett, T. (2011). *The Art of Software Testing* (3rd ed.). Wiley (analisis nilai batas).
 29. IEC 62676-4:2014. *Video surveillance systems for use in security applications — Part 4: Application guidelines* (tingkat DORI dan kerapatan piksel).
+30. Swain, M. J., & Ballard, D. H. (1991). Color indexing. *International Journal of Computer Vision*, 7(1), 11–32.
+31. Kuhn, H. W. (1955). The Hungarian method for the assignment problem. *Naval Research Logistics Quarterly*, 2(1–2), 83–97.
+32. Javed, O., Shafique, K., Rasheed, Z., & Shah, M. (2008). Modeling inter-camera space–time and appearance relationships for tracking across non-overlapping views. *Computer Vision and Image Understanding*, 109(2), 146–162.

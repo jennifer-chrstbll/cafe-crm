@@ -1,0 +1,855 @@
+{
+ "steps": [
+  {
+   "round": 1,
+   "who": "P1",
+   "customer": "P1",
+   "tx": 0,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [],
+   "rec": [
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cafe Latte",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cappuccino",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Croissant",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 1,
+   "who": "P2",
+   "customer": "P2",
+   "tx": 0,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [],
+   "rec": [
+    [
+     "Cappuccino",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Tiramisu",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 1,
+   "who": "P3",
+   "customer": "P3",
+   "tx": 0,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [],
+   "rec": [
+    [
+     "Cappuccino",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Tiramisu",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Matcha Latte",
+     1
+    ],
+    [
+     "Cheesecake",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 1,
+   "who": "S1",
+   "customer": "GUEST",
+   "order": [
+    [
+     "Americano",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 2,
+   "who": "P1",
+   "customer": "P1",
+   "tx": 1,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Croissant",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cheesecake",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Matcha Latte",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 2,
+   "who": "P2",
+   "customer": "P2",
+   "tx": 1,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Tiramisu",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cheesecake",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Cheesecake",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 2,
+   "who": "P3",
+   "customer": "P3",
+   "tx": 1,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Cheesecake",
+     1
+    ],
+    [
+     "Matcha Latte",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Cappuccino",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Matcha Latte",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 2,
+   "who": "S1",
+   "customer": "GUEST",
+   "order": [
+    [
+     "Americano",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 3,
+   "who": "P1",
+   "customer": "P1",
+   "tx": 2,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Cappuccino",
+     2
+    ],
+    [
+     "Croissant",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cheesecake",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Matcha Latte",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Croissant",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 3,
+   "who": "P2",
+   "customer": "P2",
+   "tx": 2,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Cappuccino",
+     2
+    ],
+    [
+     "Cheesecake",
+     1
+    ],
+    [
+     "Tiramisu",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Matcha Latte",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ],
+    [
+     "Tiramisu",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 3,
+   "who": "P3",
+   "customer": "P3",
+   "tx": 2,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Matcha Latte",
+     2
+    ],
+    [
+     "Cheesecake",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Cappuccino",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Matcha Latte",
+     1
+    ],
+    [
+     "Cheesecake",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 3,
+   "who": "S1",
+   "customer": "GUEST",
+   "order": [
+    [
+     "Mocha",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 4,
+   "who": "P1",
+   "customer": "P1",
+   "tx": 3,
+   "loyal": true,
+   "strategy": "COLLABORATIVE_FILTERING",
+   "favorites": [
+    [
+     "Cappuccino",
+     3
+    ],
+    [
+     "Croissant",
+     2
+    ]
+   ],
+   "rec": [
+    [
+     "Tiramisu",
+     0.394,
+     "Sering dibeli bersama Cappuccino"
+    ],
+    [
+     "Cheesecake",
+     0.21,
+     "Sering dibeli bersama Cappuccino"
+    ],
+    [
+     "Matcha Latte",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [
+    [
+     "Chocolate",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Cafe Latte",
+     0.4,
+     "Belum pernah dicoba"
+    ],
+    [
+     "Chicken Sandwich",
+     0.4,
+     "Belum pernah dicoba"
+    ]
+   ],
+   "order": [
+    [
+     "Tiramisu",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 4,
+   "who": "P2",
+   "customer": "P2",
+   "tx": 3,
+   "loyal": true,
+   "strategy": "COLLABORATIVE_FILTERING",
+   "favorites": [
+    [
+     "Cappuccino",
+     3
+    ],
+    [
+     "Tiramisu",
+     2
+    ],
+    [
+     "Cheesecake",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Croissant",
+     0.493,
+     "Sering dibeli bersama Cappuccino"
+    ],
+    [
+     "Matcha Latte",
+     0.184,
+     "Sering dibeli bersama Cheesecake"
+    ],
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [
+    [
+     "Chicken Sandwich",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Chocolate",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Cafe Latte",
+     0.4,
+     "Belum pernah dicoba"
+    ]
+   ],
+   "order": [
+    [
+     "Croissant",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 4,
+   "who": "P3",
+   "customer": "P3",
+   "tx": 3,
+   "loyal": true,
+   "strategy": "COLLABORATIVE_FILTERING",
+   "favorites": [
+    [
+     "Matcha Latte",
+     3
+    ],
+    [
+     "Cheesecake",
+     2
+    ]
+   ],
+   "rec": [
+    [
+     "Tiramisu",
+     0.2,
+     "Sering dibeli bersama Cheesecake"
+    ],
+    [
+     "Cappuccino",
+     0.167,
+     "Sering dibeli bersama Cheesecake"
+    ],
+    [
+     "Croissant",
+     0.126,
+     "Sering dibeli bersama Cheesecake"
+    ]
+   ],
+   "discover": [
+    [
+     "Cafe Latte",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Chicken Sandwich",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Chocolate",
+     0.4,
+     "Belum pernah dicoba"
+    ]
+   ],
+   "order": [
+    [
+     "Tiramisu",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 4,
+   "who": "S1",
+   "customer": "S1",
+   "tx": 0,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [],
+   "rec": [
+    [
+     "Cappuccino",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Tiramisu",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cheesecake",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Cappuccino",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 5,
+   "who": "P1",
+   "customer": "P1",
+   "tx": 4,
+   "loyal": true,
+   "strategy": "COLLABORATIVE_FILTERING",
+   "favorites": [
+    [
+     "Cappuccino",
+     3
+    ],
+    [
+     "Croissant",
+     2
+    ],
+    [
+     "Tiramisu",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Cheesecake",
+     0.427,
+     "Sering dibeli bersama Tiramisu"
+    ],
+    [
+     "Matcha Latte",
+     0.103,
+     "Sering dibeli bersama Tiramisu"
+    ],
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [
+    [
+     "Chocolate",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Cafe Latte",
+     0.4,
+     "Belum pernah dicoba"
+    ],
+    [
+     "Chicken Sandwich",
+     0.4,
+     "Belum pernah dicoba"
+    ]
+   ],
+   "order": [
+    [
+     "Chocolate",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 5,
+   "who": "P2",
+   "customer": "P2",
+   "tx": 4,
+   "loyal": true,
+   "strategy": "COLLABORATIVE_FILTERING",
+   "favorites": [
+    [
+     "Cappuccino",
+     3
+    ],
+    [
+     "Tiramisu",
+     2
+    ],
+    [
+     "Cheesecake",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Chocolate",
+     0.524,
+     "Sering dibeli bersama Cappuccino"
+    ],
+    [
+     "Matcha Latte",
+     0.285,
+     "Sering dibeli bersama Cheesecake"
+    ],
+    [
+     "Americano",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [
+    [
+     "Cafe Latte",
+     0.4,
+     "Belum pernah dicoba"
+    ],
+    [
+     "Chicken Sandwich",
+     0.4,
+     "Belum pernah dicoba"
+    ],
+    [
+     "Mocha",
+     0.267,
+     "Belum pernah dicoba"
+    ]
+   ],
+   "order": [
+    [
+     "Cafe Latte",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 5,
+   "who": "P3",
+   "customer": "P3",
+   "tx": 4,
+   "loyal": true,
+   "strategy": "COLLABORATIVE_FILTERING",
+   "favorites": [
+    [
+     "Matcha Latte",
+     3
+    ],
+    [
+     "Cheesecake",
+     2
+    ],
+    [
+     "Tiramisu",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Cafe Latte",
+     0.347,
+     "Sering dibeli bersama Cheesecake"
+    ],
+    [
+     "Cappuccino",
+     0.3,
+     "Sering dibeli bersama Tiramisu"
+    ],
+    [
+     "Croissant",
+     0.272,
+     "Sering dibeli bersama Tiramisu"
+    ]
+   ],
+   "discover": [
+    [
+     "Chicken Sandwich",
+     0.4,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Mocha",
+     0.267,
+     "Belum pernah dicoba · kategori baru"
+    ],
+    [
+     "Chocolate",
+     0.444,
+     "Belum pernah dicoba"
+    ]
+   ],
+   "order": [
+    [
+     "Chicken Sandwich",
+     1
+    ]
+   ]
+  },
+  {
+   "round": 5,
+   "who": "S1",
+   "customer": "S1",
+   "tx": 1,
+   "loyal": false,
+   "strategy": "COLD_START_POPULARITY",
+   "favorites": [
+    [
+     "Cappuccino",
+     1
+    ]
+   ],
+   "rec": [
+    [
+     "Tiramisu",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Cheesecake",
+     0,
+     "Terlaris 30 hari terakhir"
+    ],
+    [
+     "Croissant",
+     0,
+     "Terlaris 30 hari terakhir"
+    ]
+   ],
+   "discover": [],
+   "order": [
+    [
+     "Tiramisu",
+     1
+    ]
+   ]
+  }
+ ]
+}

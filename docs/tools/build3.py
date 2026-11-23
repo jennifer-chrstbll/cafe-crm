@@ -35,34 +35,67 @@ OBS_NEXT = lambda nxt: f"OBS <b>Stop Recording</b>, lalu <b>Start Recording</b> 
 OUT_ALL = "Semua peserta keluar lewat <b>pintu</b> ke <b>area tunggu</b> (di luar pandangan semua kamera)."
 
 
+import json as _json
+_FIX = _json.load(open(__import__("os").path.join(__import__("os").path.dirname(__import__("os").path.abspath(__file__)),
+                       "..", "..", "frontend", "src", "__tests__", "fixtures", "rekomendasi_uji.json"), encoding="utf-8"))["steps"]
+
+
+def _num(x):
+    return f"{x:.2f}".replace(".", ",")
+
+
+def _rec_cell(st):
+    """Expected 'Rekomendasi' list on the cashier panel (exactly as recommendation.ts computes it)."""
+    if "rec" not in st:
+        return 'Panel “Belum terdaftar” → kasir melayani sebagai <b>Tamu</b> (G6), tanpa rekomendasi'
+    out = []
+    for k, (name, score, why) in enumerate(st["rec"], 1):
+        if why.startswith("Sering dibeli bersama"):
+            out.append(f"{k}. <b>{name}</b> <span class='small'>{_num(score)} · {why}</span>")
+        else:
+            out.append(f"{k}. <b>{name}</b> <span class='small'>· Terlaris</span>")
+    return "<br>".join(out)
+
+
+def _disc_cell(st, n):
+    if "rec" not in st or not st.get("discover"):
+        return "—"
+    head = "" if n == 5 else "<span class='small'>(bila muncul)</span><br>"
+    return head + "<br>".join(f"{k}. {name}" + (" <span class='small'>· kategori baru</span>" if "kategori baru" in why else "")
+                              for k, (name, _, why) in enumerate(st["discover"], 1))
+
+
 def round_page(n, time, see, extra="", s1="", cashier_note=""):
-    order = {1: ["Kopi A + Makanan A", "Kopi A", "Non-kopi A + Makanan B"],
-             2: ["Kopi A", "Kopi A + Makanan A", "Non-kopi A"],
-             3: ["Kopi B + Makanan A", "Kopi A", "Non-kopi B + Makanan B"]}.get(n, ["pilih dari rekomendasi"] * 3)
     pos = {1: "KTN", 2: "TNK", 3: "NKT", 4: "KNT", 5: "TKN"}[n]
-    rows = "".join(f"<tr><td><b>P{i + 1}</b></td><td style='font-size:14px;font-weight:800;color:#15803d'>{pos[i]}</td>"
-                   f"<td>{order[i]}</td></tr>" for i in range(3))
-    path = room(people=[(70, 97, "P", "#16a34a"), (215, 85, "P")],
-                arrows=[[(18, 112), (57, 101)], [(85, 95), (203, 87)], [(206, 98), (20, 130)]],
-                caption="pintu → kasir → area duduk (lewat pita) → pintu")
-    steps = [("Masuk", "Masuk lewat pintu satu per satu, <b>alami seperti antre</b>: P1, lalu P2 di belakangnya, lalu P3."),
-             ("Garis tunggu", "Orang berikutnya menunggu di garis tunggu (1,2 m) sampai orang di depannya selesai bayar."),
-             ("Titik kasir", "Berdiri di posisi <b>K/T/N</b> (tabel), hadap kamera ±3 dtk.",
-              ("Nama muncul di Kasir & menempel (hijau) dalam 5 dtk?", "lanjut",
-               "🗣️ <i>“gagal kenal Pn”</i>, kasir pilih pelanggan manual, catat")),
-             ("Kasir", "Ucapkan <b>sapaan</b> di layar, masukkan pesanan (tabel), <b>bayar</b>.",
-              ("Rekomendasi sesuai kotak hijau?", "lanjut", "🗣️ <i>“rekomendasi beda”</i>, catat")),
-             ("Area duduk", "Jalan lewat <b>pita</b>, duduk <b>1 menit</b>.",
-              ("Nama ikut pindah ke kamera 2?", "lanjut", "🗣️ <i>“gagal pindah Pn”</i>, catat")),
-             ("Keluar", "Kembali lewat pita, keluar lewat <b>pintu</b> ke area tunggu.")]
+    rows = ""
+    for st in [x for x in _FIX if x["round"] == n]:
+        who = st["who"]
+        p = pos[int(who[1]) - 1] if who != "S1" else "T"
+        order = " + ".join(m for m, q in st["order"])
+        rows += (f"<tr><td><b>{who}</b></td><td style='font-size:14px;font-weight:800;color:#15803d'>{p}</td>"
+                 f"<td style='font-weight:700'>{order}</td><td>{_rec_cell(st)}</td>"
+                 + (f"<td>{_disc_cell(st, n)}</td>" if n >= 4 else "") + "</tr>")
+    steps = [("Masuk", "Lewat pintu satu per satu seperti antre: P1, P2, P3, lalu S1."),
+             ("Garis tunggu", "Yang berikutnya menunggu di garis 1,2 m sampai yang depan selesai bayar."),
+             ("Titik kasir", "Berdiri di <b>K/T/N</b> (tabel), hadap kamera ±3 dtk."),
+             ("Kasir", "Sapaan, cocokkan <b>Rekomendasi</b> dengan tabel, pesan <b>persis</b> (1 porsi/menu), <b>bayar</b>."),
+             ("Area duduk", "Lewat <b>pita</b>, duduk <b>1 menit</b>."),
+             ("Keluar", "Lewat pita, keluar <b>pintu</b> ke area tunggu.")]
+    checks = ('<div class="dec" style="display:flex;margin-top:4px"><div class="q" style="flex:1">❓ ③ Nama muncul & menempel (hijau) ≤ 5 dtk? '
+              '<span style="color:#b91c1c">Tidak → 🗣️ “gagal kenal Pn”, kasir pilih manual</span></div>'
+              '<div class="q" style="flex:1">❓ ④ Rekomendasi = tabel (nama & urutan)? <span style="color:#b91c1c">Tidak → 🗣️ “rekomendasi beda”, foto panel, tetap pesan sesuai tabel</span></div>'
+              '<div class="q" style="flex:1">❓ ⑤ Nama ikut ke kamera 2? <span style="color:#b91c1c">Tidak → 🗣️ “gagal pindah Pn”</span></div></div>')
+    head = ("<tr><th>Peserta</th><th>Posisi</th><th>Pesan (persis)</th><th>✅ Panel “Rekomendasi” harus (urutan 1→3)</th>"
+            + ("<th>“Coba yang baru”</th>" if n >= 4 else "") + "</tr>")
     return (f'<section class="page">{band(time, f"Putaran {n}", C["R"], DAY)}'
             + chips(siapa="P1 → P2 → P3" + s1, rekam=f"“Putaran {n}”", lama="±8 menit") +
-            ('<div class="warn">⏰ Sebelum putaran ini semua peserta sudah <b>≥ 2 menit di area tunggu</b> (lihat jeda di halaman sebelumnya). '
-             'Dengan mode uji “kembali dalam 1 menit”, itu membuat putaran ini tercatat sebagai <b>kunjungan baru</b>.</div>' if n > 1 else "")
-            + extra + flow(steps, C["R"]) +
-            '<div class="grid g2"><div class="rfig">' + path + '</div><div><table><tr><th>Peserta</th><th>Posisi</th>'
-            f'<th>Pesanan (ganti dengan nama menu di CRM)</th></tr>{rows}</table>'
-            f'<div class="ok">✅ <b>Harus terlihat di panel Kasir:</b> {see}</div>{cashier_note}</div></div>')
+            ('<div class="warn" style="padding:4px 10px">⏰ Semua peserta sudah <b>≥ 2 menit di area tunggu</b> → putaran ini tercatat sebagai <b>kunjungan baru</b> (mode uji “kembali dalam 1 menit”).</div>' if n > 1 else "")
+            + extra + flow(steps, C["R"]) + checks +
+            f'<table class="rt" style="margin-top:5px">{head}{rows}</table>'
+            f'<div class="ok" style="margin-top:5px">✅ <b>Harus terlihat di panel Kasir:</b> {see} '
+            '<span style="color:#475569">Lihat panel <b>±10 dtk setelah</b> orang sebelumnya membayar (rekomendasi memakai semua pesanan sampai saat itu). '
+            'Salah input → perbaiki sebelum bayar; bila sudah terbayar, catat (tabel berikutnya berubah: hitung ulang dengan <code>scripts/simulasi_rekomendasi_uji.py</code>).</span></div>'
+            f'{cashier_note}')
 
 
 def build():
@@ -101,7 +134,7 @@ def build():
     cards = "".join(f'<div class="person"><div class="dot" style="background:{c}">{k}</div><div><b>{t}</b><br>'
                     f'<span class="small">{d}</span></div></div>' for k, c, t, d in people)
     equip = ["Raspberry Pi 5 + 2 webcam area", "UNO Q + webcam wajah (NEMESIS)", "Charger 5 V 3 A untuk UNO Q, adaptor Pi, stop kontak",
-             "2 tiang/tripod/lemari ±2,5–3 m + lakban kuat", "Laptop + charger + mouse", "HP hotspot (dicas) + HP stopwatch/foto",
+             "2 tempat kamera ±2–3 m (atas proyektor/lemari/tripod) + lakban kuat", "Laptop + charger + mouse", "HP hotspot (dicas) + HP stopwatch/foto",
              "Lakban warna + meteran 3 m", "Aplikasi lux meter", "Lampu tambahan + cara meredupkan ruangan",
              "Topi, masker, kacamata hitam, jaket", "Meja kasir, 1 meja + 2 kursi, 1 sekat", "Formulir persetujuan, lembar SUS"]
     H.append(f'<section class="page"><h2>👥 Siapa saja · 🧰 Alat · 🚪 Area tunggu</h2><div class="grid g3">{cards}</div>'
@@ -122,7 +155,8 @@ def build():
              '<div class="note"><b>📷 Kamera wajah (UNO Q)</b><br>• Di sisi <b>kasir</b> pada meja, dekat layar kasir (tempat pelanggan memandang)<br>'
              '• Lensa setinggi wajah ±1,3–1,5 m, sedikit menunduk<br>• Pelanggan berdiri <b>±0,8 m</b> dari lensa (lebar meja + 1 langkah). Terlalu dekat (&lt; 0,4 m) wajah terpotong<br>'
              '• Jangan membelakangi jendela/lampu terang</div>'
-             '<div class="note"><b>🎥 Dua kamera area (Pi)</b><br>• Tinggi ±2,5–3 m, menunduk ±30–45°, badan utuh terlihat (kepala–kaki)<br>'
+             '<div class="note"><b>🎥 Dua kamera area (Pi)</b><br>• Tinggi ±2–3 m (2 m di atas proyektor cukup), menunduk ±25–40°, badan utuh (kepala–kaki) terlihat di titik kasir & area duduk<br>'
+             '• Dari <b>sudut</b> ruangan, memandang menyerong (bukan searah antrean); kamera & kabel dilakban agar tidak bergeser<br>'
              '• Kamera 1: antrean, kasir, pintu. Kamera 2: area duduk<br>• <b>Tumpang tindih ±1 m</b> (pita hijau)<br>'
              '• Pi di atas di antara kamera, webcam ke <b>port USB biru</b>, satu per port</div>'
              '<div class="note"><b>Tanda lantai (lakban)</b><br>• Titik kasir <b>K · T · N</b> (±30 cm), ±0,8 m dari kamera wajah<br>'
@@ -138,9 +172,9 @@ def build():
               '<rect x="282" y="86" width="126" height="68" rx="6" fill="#4c1d95"/><text x="345" y="124" font-size="10" fill="#fff" text-anchor="middle">Lokal: Area duduk</text>'
               '<rect x="282" y="160" width="126" height="68" rx="6" fill="#065f46"/><text x="345" y="198" font-size="10" fill="#fff" text-anchor="middle">Lokal: Kamera wajah</text></svg>')
     H.append('<section class="page"><h2>🎥 Merekam bukti</h2><div class="grid g2"><div>' + screen + '<div class="small">'
-             'Tiga jendela kanan dibuka dari <b>CRM → Perangkat → Tampilan lokal untuk merekam</b> (satu tombol per kamera). '
-             'Lewat hotspot saja, tanpa kuota internet. Isinya kotak, nama, tata letak, FPS, dan <b>jam perangkat</b>. '
-             'Tombol ini muncul setelah program perangkat dan website diperbarui (Persiapan langkah 1).</div></div><div>'
+             'Kolom kanan = <b>satu jendela berisi ketiga kamera</b>: <b>CRM → Perangkat → Semua kamera dalam 1 jendela → Salin perintah (tanpa bar alamat)</b>, '
+             'tempel di PowerShell, Enter, lalu taruh jendelanya di kanan layar. Buka ulang setelah perangkat dimulai ulang (token baru). '
+             'Lewat hotspot saja, tanpa kuota internet. Isinya kotak, nama (“Nama?” = sedang dipastikan), tata letak, FPS, dan <b>jam perangkat</b>.</div></div><div>'
              + flow([("Awal blok", "OBS <b>Start Recording</b>"), ("Penanda", "🗣️ ucapkan kode sebelum percobaan"),
                      ("Akhir blok", "OBS <b>Stop</b> (kotak ⏭️)")], C["X"]) +
              '<div class="ok">✅ <b>Tidak perlu menulis hasil</b>, semua tercatat otomatis:</div><table>'
@@ -158,7 +192,10 @@ def build():
              cmd("# Website", "cd D:\\Projects\\cafe-crm", "git add -A", 'git commit -m "persiapan uji"', "git push",
                  "# Raspberry Pi (ganti raspberrypi.local dengan IP Pi bila tidak ketemu)",
                  f"scp D:\\Projects\\DEPLOY\\RaspberryPi5\\cafe_pi.py D:\\Projects\\DEPLOY\\RaspberryPi5\\crm_sync.py D:\\Projects\\DEPLOY\\RaspberryPi5\\streamer.py D:\\Projects\\DEPLOY\\RaspberryPi5\\livecast.py D:\\Projects\\DEPLOY\\RaspberryPi5\\runlog.py D:\\Projects\\DEPLOY\\RaspberryPi5\\config.py {PI}:~/cafe-pi/",
-                 f"scp D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\face_binding.py D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\face_event.py D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\face_receiver.py {PI}:~/cafe-pi/identity/",
+                 f"scp D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\associator.py D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\color_cue.py D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\face_binding.py D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\face_event.py D:\\Projects\\DEPLOY\\RaspberryPi5\\identity\\face_receiver.py {PI}:~/cafe-pi/identity/",
+                 f"scp D:\\Projects\\DEPLOY\\RaspberryPi5\\tracker\\byte_track.py {PI}:~/cafe-pi/tracker/",
+                 "# Kamera lab TUMPANG TINDIH (pita): hapus pengaturan uji rumah (beda ruangan) dari .env bila pernah ditambahkan",
+                 f'ssh {PI} "sed -i -e /^MULTICAM_OVERLAP=/d -e /^TRANSITION_TIME_WINDOW_SEC=/d -e /^CROSS_CAM_WINDOW_SEC=/d ~/cafe-pi/.env"',
                  f"scp D:\\Projects\\DEPLOY\\RaspberryPi5\\multicam\\multicam_manager.py {PI}:~/cafe-pi/multicam/",
                  "# UNO Q", f"scp D:\\Projects\\DEPLOY\\ArduinoUnoQ\\facerec_uno_q.py {UQ}:/home/arduino/facerec/",
                  "# Jam WIB + mulai ulang keduanya",
@@ -167,9 +204,10 @@ def build():
              '<div class="grid g2"><div><h3>2 · Database lengkap?</h3>Supabase → SQL Editor → isi <code>database/cek_skema.sql</code> → Run. '
              'Semua harus <b>OK</b>. Bila ada <b>KURANG</b>, jalankan file yang disebut.'
              '<h3>3 · Pengaturan website</h3>• Kafe & kunjungan: jeda <b>15 dtk</b>, cadangan <b>15</b>, kembali dalam <b>30</b>, maks <b>6 jam</b><br>'
-             '• Menu ≥ 10 dari 3 kategori (boleh dengan gambar) · akun <b>Kasir</b> untuk A<br>'
+             '• Menu aktif <b>tepat 10</b>, nama persis: Americano, Cafe Latte, Cappuccino, Mocha, Matcha Latte, Chocolate, Croissant, Chicken Sandwich, Cheesecake, Tiramisu '
+             '(menu lain dinonaktifkan dulu: tabel rekomendasi Putaran 1–5 dihitung dari 10 menu ini) · akun <b>Kasir</b> untuk A<br>'
              '• Tata Letak: titik kasir, <b>kamera wajah</b>, area staf, pintu, area pindah (kedua kamera)<br>'
-             '• Perangkat: nama kamera <i>Area kasir</i> / <i>Area duduk</i>; tombol <b>Tampilan lokal</b> muncul'
+             '• Perangkat: nama kamera <i>Area kasir</i> / <i>Area duduk</i>; panel <b>Semua kamera dalam 1 jendela</b> muncul'
              '<h3>4 · OBS</h3>Simple · <b>D:\\UjiTA\\Rekaman</b> · mkv · <b>QSV</b> · 30 fps · mikrofon · Display Capture. '
              'Windows: sleep Never, Focus assist ON, tunda Windows Update.'
              '<h3>5 · Cek kuota</h3>D: ≥ 30 GB · Supabase <b>Active</b> (bukan Paused) · kuota hotspot ≥ 2 GB.</div><div>'
@@ -220,8 +258,11 @@ def build():
                    ("Perangkat hijau?", "CRM → Perangkat: dua-duanya <b>Online</b>.",
                     ("Hijau dalam 2 menit?", "lanjut", "Kartu darurat 🔴")),
                    ("<b>Mode uji</b>", "Pengaturan → Kafe & kunjungan: <b>kembali dalam = 1</b>, <b>cadangan = 2</b> → Simpan."),
-                   ("Layar rekaman", "Kasir + 3 tampilan lokal (Perangkat → Tampilan lokal)."),
+                   ("Layar rekaman", "Kasir (kiri) + jendela <b>Semua kamera</b> (kanan): Perangkat → Salin perintah → PowerShell."),
                    ("Cek", "Lux normal di titik kasir ___ dan area duduk ___. OBS rekam 10 dtk & putar ulang. D: ≥ 15 GB.")], C["prep"]) +
+             '<div class="note">💡 <b>Lux meter</b>: HP Android → Play Store → pasang aplikasi <b>“Lux Light Meter”</b> (atau aplikasi lux lain yang membaca <b>sensor cahaya</b>). '
+             'Ukur di <b>titik T setinggi wajah</b>, layar HP menghadap <b>kamera wajah</b> (sensornya di atas layar, dekat kamera depan), tahan 3 dtk, baca angkanya. '
+             'iPhone tidak membuka sensor cahaya ke aplikasi (hanya lewat kamera, kurang akurat): pinjam HP Android, atau tulis “perkiraan”.</div>'
              '<div class="note">Cek kesiapan perangkat dari laptop (opsional):</div>' +
              cmd(f'ssh -t {PI} "tail -3 ~/cafe-pi/data/events.csv"', f'ssh -t {UQ} "tail -3 ~/facerec/data/decisions.csv"') +
              after(OBS_NEXT("Pembukaan"), "Peserta datang 12.50, kumpul di area tunggu.") + "</section>")
@@ -240,9 +281,8 @@ def build():
              + card("A2 · A3 · A4", "Variasi (sekali masing-masing)", "P1 · P2 · P3",
                     "<b>A2</b> P1: coba daftar <b>tanpa</b> centang persetujuan. <b>A3</b> P2: mulai dari tanda 2,0 m, lalu maju. <b>A4</b> P3: P1 berdiri tepat di samping P3 saat mendaftar, lalu mundur.",
                     "A2 ditolak · A3 “Terlalu jauh/Mendekat sedikit” lalu berhasil · A4 “Beberapa wajah sama dekat” lalu berhasil.", "", "", C["A"]) + "</div>")
-    H.append(round_page(1, "13.05–13.25", "<b>“Terlaris 30 hari terakhir”</b> (pelanggan baru).", extra=enrol,
-                        s1=" · lalu S1 (tamu)",
-                        cashier_note='<div class="note">S1 terakhir: berdiri di T → panel “Belum terdaftar” → kasir melayani sebagai <b>Tamu</b> (G6).</div>')
+    H.append(round_page(1, "13.05–13.25", "<b>“Terlaris 30 hari terakhir”</b> (pelanggan baru; belum ada penjualan → urut abjad, lalu berubah setelah tiap pembayaran).", extra=enrol,
+                        s1=" · lalu S1 (tamu)")
              + after(OBS_NEXT("Blok B"), OUT_ALL + " Lalu P1, P2, S1 masuk lagi untuk Blok B.") + "</section>")
 
     # Block B
@@ -268,7 +308,7 @@ def build():
              + card("B2", "Orang asing", "S1 · 20× (di sela-sela)", "Setiap ada jeda, S1 melakukan satu percobaan biasa.", "Selalu <b>tidak dikenal</b>.", "Diberi nama → 🗣️ “salah terima”, catat (penting).", top(people=[(0, 0.9, "S1")]), C["B"])
              + '</div>' + after("Kembalikan cahaya normal.", OUT_ALL, "⏳ <b>Jeda 2 menit</b> (semua di area tunggu) — syarat kunjungan baru di Putaran 2.", OBS_NEXT("Putaran 2")) + "</section>")
 
-    H.append(round_page(2, "13.50–14.00", "<b>“Terlaris”</b> (baru 1 transaksi).", s1=" · lalu S1 (tamu)")
+    H.append(round_page(2, "13.50–14.00", "<b>“Terlaris”</b> untuk P1–P3 (baru 1 transaksi; menu yang pernah dibeli sendiri tidak ditawarkan).", s1=" · lalu S1 (tamu)")
              + after(OUT_ALL, OBS_NEXT("Blok C")) + "</section>")
 
     occl = lambda: top(people=[(0.55, 1.2, "P3")], obstacle=(0.3, 0.95, 0.15, 0.6), spots=False, wait=False, arrows=[[(-0.8, 1.2), (0.3, 1.2)]])
@@ -292,7 +332,7 @@ def build():
              + '</div><div class="note"><b>C4 Duduk lama</b>: P2 duduk di area duduk 10 menit selama blok ini (sejak C3). ✅ Tetap terlacak, kunjungan tidak ditutup.</div>'
              + after(OUT_ALL, "⏳ <b>Jeda 2 menit</b>.", OBS_NEXT("Putaran 3")) + "</section>")
 
-    H.append(round_page(3, "14.17–14.27", "<b>“Terlaris”</b> (baru 2 transaksi).", s1=" · lalu S1 (tamu)")
+    H.append(round_page(3, "14.17–14.27", "<b>“Terlaris”</b> (baru 2 transaksi). Setelah putaran ini P1–P3 punya 3 transaksi → Putaran 4 memakai CF.", s1=" · lalu S1 (tamu)")
              + after(OUT_ALL, OBS_NEXT("Blok E"), "Cek CRM → Perangkat → Asosiasi otomatis: <b>“Siap: kalibrasi selesai”</b>. Belum siap → E3b tetap dijalankan, hasil “kasir ditanya” dicatat.") + "</section>")
 
     # Block E
@@ -301,13 +341,13 @@ def build():
     H.append('<section class="page">' + band("14.27–14.47", "Blok E · Asosiasi wajah → badan", C["E"], DAY) +
              chips(siapa="P1, P2, P3, S1", lama="±20 menit") +
              '<div class="note">Yang dinilai: setelah wajah orang di depan dikenali, <b>namanya menempel ke badan yang benar</b> di tampilan Area kasir, tanpa kasir menekan apa-apa. Kerjakan <b>berurutan</b>.</div>' +
-             reset("orang yang tadi di <b>depan</b> (sudah diberi nama) keluar lewat <b>pintu</b> dan menunggu <b>≥ 35 detik</b> di area tunggu "
-                   "(nama yang hilang dari kamera < 30 detik dipulihkan dari penampilan, jadi bukan uji asosiasi baru). "
+             reset("orang yang tadi di <b>depan</b> (sudah diberi nama) keluar lewat <b>pintu</b> dan menunggu <b>≥ 70 detik</b> di area tunggu "
+                   "(yang kembali lewat pintu dalam batas “kembali dalam” — mode uji 1 menit — dikenali lagi dari penampilannya, seperti pelanggan yang keluar merokok; itu bukan uji asosiasi baru). "
                    "Pakai giliran berputar di tabel supaya tidak ada yang menunggu.") +
              '<div class="grid g2"><div>'
              + '<b>E9 · Orang asing di kasir</b> (S1, 2×): S1 di T. ✅ Tidak ada nama terpasang. S1 mundur ke garis tunggu di antara percobaan.'
-             + '<br><b>E2 · Antre 1 m</b>' + rot([("1", "P1", "P2 di garis 1,0 m", "P1 keluar ≥35 dtk"), ("2", "P2", "P3 di 1,0 m", "P2 keluar"), ("3", "P3", "P1 di 1,0 m", "P3 keluar")])
-             + '<b>E3a · Antre 0,6 m</b>' + rot([("1", "P1", "P2 di garis 0,6 m", "P1 keluar ≥35 dtk"), ("2", "P2", "P3 di 0,6 m", "P2 keluar"), ("3", "P3", "P1 di 0,6 m", "P3 keluar")])
+             + '<br><b>E2 · Antre 1 m</b>' + rot([("1", "P1", "P2 di garis 1,0 m", "P1 keluar ≥70 dtk"), ("2", "P2", "P3 di 1,0 m", "P2 keluar"), ("3", "P3", "P1 di 1,0 m", "P3 keluar")])
+             + '<b>E3a · Antre 0,6 m</b>' + rot([("1", "P1", "P2 di garis 0,6 m", "P1 keluar ≥70 dtk"), ("2", "P2", "P3 di 0,6 m", "P2 keluar"), ("3", "P3", "P1 di 0,6 m", "P3 keluar")])
              + '<b>E3b · Berdampingan</b> (orang kedua ±40 cm di samping, masih di lingkaran)'
              + rot([("1", "P1", "P2 di kanan", "P1 keluar"), ("2", "P2", "P3 di kiri", "P2 keluar"), ("3", "P3", "P1 di kanan", "P3 keluar"), ("4", "P1", "P2 di kiri", "P1 tetap (untuk E5)")])
              + '<div class="ok">✅ E2, E3a, E3b: nama <b>otomatis</b> ke orang <b>depan</b>; tidak ada salah pasang.</div>'
@@ -320,16 +360,17 @@ def build():
              + card("E5", "Lepas pasangan salah", "P1 (bernama) + P2", "Halaman <b>Kamera</b>: ketuk P2 → <b>Pasang pelanggan</b> → pilih P1 → konfirmasi (salah sengaja) → ketuk P2 → <b>Bukan dia</b>.",
                     "Nama lepas dari P2; kunjungan P1 tidak ditutup.", "", "", C["E"])
              + card("E6", "Bukan staf", "P3", "P3 berdiri di area staf ±1 mnt sampai berlabel Staf → Kamera → ketuk P3 → <b>Bukan staf</b>.", "Label staf hilang.", "", "", C["E"])
-             + card("E7", "Nama tetap menempel", "P2 (keluar ≥35 dtk dulu)", "P2 dikenali di T → jalan ke area duduk, duduk 1 mnt → kembali.", "Nama sama di kedua kamera.", "", "", C["E"])
+             + card("E7", "Nama tetap menempel", "P2 (keluar ≥70 dtk dulu)", "P2 dikenali di T → jalan ke area duduk, duduk 1 mnt → kembali.", "Nama sama di kedua kamera.", "", "", C["E"])
              + card("E0b", "Pelanggan baru", "S1", "Kasir mendaftarkan S1 (“S1 Nama”, persetujuan) saat S1 di T.", "Nama S1 langsung menempel.", "", "", C["E"])
-             + card("E3d", "Tanpa titik kamera wajah", "P1 + P3 (keduanya keluar ≥35 dtk dulu)", "K: Tata Letak → hapus <b>Kamera wajah</b> → Simpan. P1 di T, P3 di 0,6 m.", "Kasir <b>ditanya</b> dalam ±5 dtk (pembanding).", "", "", C["E"])
+             + card("E3d", "Tanpa titik kamera wajah", "P1 + P3 (keduanya keluar ≥70 dtk dulu)", "K: Tata Letak → hapus <b>Kamera wajah</b> → Simpan. P1 di T, P3 di 0,6 m.", "Kasir <b>ditanya</b> dalam ±5 dtk (pembanding).", "", "", C["E"])
              + card("E4", "Kaitkan manual", "dari E3d", "Kasir membuka pertanyaan → ketuk P1.", "Nama menempel, tanda ✓ (manual).", "", "", C["E"])
              + '</div>' + after("K: Tata Letak → <b>pasang lagi titik Kamera wajah</b> → Simpan (kalibrasi mulai dari awal, tidak masalah).", OUT_ALL,
                                 "⏳ <b>Jeda 2 menit</b>.", OBS_NEXT("Putaran 4")) + "</section>")
 
-    H.append(round_page(4, "14.47–14.57", "P1–P3: <b>collaborative filtering</b> “Sering dibeli bersama …”. S1: <b>“Terlaris”</b> (pelanggan baru).",
+    H.append(round_page(4, "14.47–14.57", "P1–P3: keterangan <b>“Berdasarkan pelanggan dengan selera serupa”</b> dan alasan <b>“Sering dibeli bersama …”</b> dengan skor seperti tabel. "
+                        "Contoh P1: <b>Tiramisu</b>, karena P2 (sama-sama suka Cappuccino) membeli Tiramisu. Setiap peserta <b>memesan rekomendasi nomor 1</b>. S1: “Terlaris” (pelanggan baru).",
                         s1=" · lalu S1 (sekarang pelanggan)",
-                        cashier_note='<div class="note">Bila panel menunjukkan ≥ 5 kunjungan, “Coba yang baru” boleh sudah muncul (kunjungan juga tercatat di blok uji).</div>')
+                        cashier_note='<div class="note">“Coba yang baru” hanya muncul bila panel menunjukkan ≥ 5 kunjungan (kunjungan blok uji ikut dihitung); bila muncul, isinya seperti tabel. Perhitungan lengkap: Lampiran 9.3.</div>')
              + after(OUT_ALL, OBS_NEXT("Blok D-F")) + "</section>")
 
     H.append('<section class="page">' + band("14.57–15.15", "Blok D + F · Pindah kamera dan kunjungan", C["D"], DAY) +
@@ -346,7 +387,8 @@ def build():
              '<div class="row"><span class="when">15.13</span>F1 dan durasi kunjungan diambil dari semua putaran (tidak perlu uji tambahan).</div></div>'
              + after(OUT_ALL, "⏳ <b>Jeda 2 menit</b>.", OBS_NEXT("Putaran 5")) + "</section>")
 
-    H.append(round_page(5, "15.15–15.25", "P1–P3: <b>“Coba yang baru”</b> (≥ 5 kunjungan) + CF + <b>sapaan pelanggan setia</b>. S1: “Terlaris”.",
+    H.append(round_page(5, "15.15–15.25", "P1–P3: CF berubah mengikuti pesanan Putaran 4 (P1: <b>Cheesecake</b> naik ke nomor 1 karena P1 kini membeli Tiramisu) + <b>“Coba yang baru”</b> (≥ 5 kunjungan) + <b>sapaan pelanggan setia</b>. "
+                        "P1–P3 <b>memesan “Coba yang baru” nomor 1</b>. S1: “Terlaris”.",
                         s1=" · lalu S1",
                         cashier_note='<div class="note"><b>Untuk SUS</b>: P1 menjadi kasir saat P2 memesan, P2 menjadi kasir saat P3 memesan (A mendampingi).</div>')
              + after(OUT_ALL, OBS_NEXT("Blok H"), "CRM → <b>Kamera</b> dibuka di laptop (dibutuhkan blok H).") + "</section>")
@@ -401,7 +443,8 @@ def build():
     # ── appendix ────────────────────────────────────────────────────────────
     H.append('<section class="page app"><h1>Lampiran · untuk menulis skripsi</h1><div class="sub">Tidak perlu dibuka saat pelaksanaan.</div>'
              + md_section("### 8.1", "## 9.") + "</section>")
-    H.append('<section class="page app">' + md_section("## 9.", "## 10.") + "</section>")
+    H.append('<section class="page app">' + md_section("## 9.", "### 9.3") + "</section>")
+    H.append('<section class="page app">' + md_section("### 9.3", "## 10.") + "</section>")
     H.append('<section class="page app">' + md_section("## 10.", "## 13.") + "</section>")
     H.append('<section class="page app">' + md_section("### 13.2", "### 13.3") + "</section>")
     H.append('<section class="page app">' + md_section("### 13.3", "## Referensi") + "</section>")

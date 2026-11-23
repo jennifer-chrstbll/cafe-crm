@@ -48,6 +48,7 @@ h3 { font-size: 14px; margin: 10px 0 6px; }
 .code { display: inline-block; color: #fff; font-weight: 800; border-radius: 6px; padding: 1px 7px; margin-right: 5px; font-size: 11px; }
 .card .ttl { font-weight: 700; font-size: 12.5px; }
 .meta { color: #475569; font-size: 10.5px; margin: 2px 0 4px; }
+.rt td, .rt th { padding: 2px 6px; font-size: 10.5px; line-height: 1.3; }
 .ok { background: #dcfce7; border-left: 4px solid #16a34a; padding: 3px 6px; border-radius: 4px; margin-top: 4px; font-size: 10.5px; }
 .bad { background: #fef3c7; border-left: 4px solid #d97706; padding: 3px 6px; border-radius: 4px; margin-top: 3px; font-size: 10.5px; }
 .note { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 7px 10px; margin: 6px 0; font-size: 11px; }

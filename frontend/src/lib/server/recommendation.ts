@@ -55,6 +55,7 @@ const LAMBDA = 0.7;                    // MMR: relevance vs. diversity
 type MenuRow = { menu_id: string; name: string; category: string; price: number };
 interface Model {
   at: number;
+  sig: string; // number of orders + newest order time when the model was built
   items: Map<string, Map<string, number>>; // item -> customer -> weight
   norms: Map<string, number>;
   byCustomer: Map<string, Map<string, number>>; // customer -> item -> qty
@@ -65,14 +66,29 @@ interface Model {
 
 let model: Model | null = null;
 
+/**
+ * Orders "fingerprint" (count + newest time). On Vercel every warm server instance has its own copy
+ * of the model, and an order invalidates only the copy of the instance that saved it. Comparing this
+ * tiny one-row query first means every instance rebuilds as soon as any order was added or removed,
+ * so the cashier always sees recommendations computed from ALL orders so far (deterministic: the
+ * same history always gives the same list).
+ */
+async function ordersSignature(): Promise<string> {
+  const { data, count } = await db().from("orders").select("created_at", { count: "exact" })
+    .order("created_at", { ascending: false }).limit(1);
+  return `${count ?? 0}:${data?.[0]?.created_at ?? ""}`;
+}
+
 async function buildModel(): Promise<Model> {
-  if (model && Date.now() - model.at < 5 * 60_000) return model;
+  const sig = await ordersSignature();
+  if (model && model.sig === sig && Date.now() - model.at < 5 * 60_000) return model;
   const sb = db();
   const since180 = new Date(Date.now() - 180 * 86_400_000).toISOString();
   const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
   const [menuRows, orders, recent] = await Promise.all([
-    sb.from("menu").select("menu_id, name, category, price").eq("is_active", true),
+    // Ordered by name: equal scores / equal sales are then always listed alphabetically.
+    sb.from("menu").select("menu_id, name, category, price").eq("is_active", true).order("name"),
     fetchAll<{ menu_id: string; qty: number; visits: { customer_id: string } }>((a, b) =>
       sb.from("orders").select("menu_id, qty, visits!inner(customer_id)")
         .neq("visits.customer_id", GUEST_ID).gte("created_at", since180).range(a, b) as never),
@@ -104,7 +120,7 @@ async function buildModel(): Promise<Model> {
   for (const o of recent.length ? recent : orders) sold.set(o.menu_id, (sold.get(o.menu_id) ?? 0) + o.qty);
   const popular = [...menus.keys()].sort((a, b) => (sold.get(b) ?? 0) - (sold.get(a) ?? 0));
 
-  model = { at: Date.now(), items, norms, byCustomer, popular, sold, menus };
+  model = { at: Date.now(), sig, items, norms, byCustomer, popular, sold, menus };
   return model;
 }
 
@@ -164,7 +180,12 @@ export async function recommendFor(customerId: string | null, topN = 3, loyal = 
       .eq("visits.customer_id", customerId);
     txCount = count ?? 0;
   }
-  const history = (customerId && m.byCustomer.get(customerId)) || new Map<string, number>();
+  // Menu-name order, so equal contributions/quantities always resolve the same way (orders come
+  // back from the database in no particular order).
+  const nameOf = (id: string) => m.menus.get(id)?.name ?? id;
+  const history = new Map<string, number>(
+    [...((customerId && m.byCustomer.get(customerId)) || new Map<string, number>()).entries()]
+      .sort((a, b) => (nameOf(a[0]) < nameOf(b[0]) ? -1 : nameOf(a[0]) > nameOf(b[0]) ? 1 : 0)));
   const favorites: Favorite[] = [...history.entries()]
     .filter(([id]) => m.menus.has(id))
     .sort((a, b) => b[1] - a[1])
@@ -211,7 +232,7 @@ export async function recommendFor(customerId: string | null, topN = 3, loyal = 
   };
 }
 
-/** New orders: rebuild the model within a minute (not on every order: it reads 180 days of orders). */
+/** New orders: rebuild on the next request (other instances notice through ordersSignature). */
 export function invalidateRecommendations() {
-  if (model) model.at = Math.min(model.at, Date.now() - 4 * 60_000);
+  if (model) model.at = 0;
 }

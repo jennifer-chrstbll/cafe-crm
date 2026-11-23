@@ -2,9 +2,9 @@
 
 | Jenis | Apa | Hasil | Cara mengulang |
 |---|---|---|---|
-| Unit test | Raspberry Pi (pelacakan, identitas, asosiasi, multi-kamera, kunjungan, nama lintas kamera, tertutup sebagian, siapa-yang-mana saat berdekatan, duduk/kepala/kaki saja) | **231 lulus**, 1 dilewati (termasuk 23 skenario dokumen uji: C1–C5, D2/D3/D5, E7, F2/F3, keluar merokok, putar 360°, jalan berdua) | `DEPLOY\RaspberryPi5`: `python -m pytest -q` |
+| Unit test | Raspberry Pi (pelacakan, identitas, asosiasi, multi-kamera, kunjungan, nama lintas kamera, tertutup sebagian, siapa-yang-mana saat berdekatan, duduk/kepala/kaki saja) | **236 lulus**, 1 dilewati (termasuk 23 skenario dokumen uji: C1–C5, D2/D3/D5, E7, F2/F3, keluar merokok, putar 360°, jalan berdua; dan 5 uji kaus merah vs kuning yang terus berdempetan) | `DEPLOY\RaspberryPi5`: `python -m pytest -q` |
 | Unit test | UNO Q (gerbang mutu wajah, aturan keputusan, vault, posisi wajah, pendaftaran, log) | **14 lulus** | `cafe_facerec`: `python -m pytest tests -q` |
-| Unit test | Website (validasi tata letak & kamera, sapaan kasir, daftar kamera) | **16 lulus** | `cafe-crm\frontend`: `npm test` |
+| Unit test | Website (validasi tata letak & kamera, sapaan kasir, daftar kamera, rekomendasi Putaran 1–5 persis seperti panduan uji) | **17 lulus** | `cafe-crm\frontend`: `npm test` |
 | Integrasi | UNO Q → Pi → database: heartbeat, tampilan lokal, WebSocket + token, event wajah → asosiasi otomatis → kunjungan, batas kunjungan (kedua sisi), log, reset & ekspor SQL | **21/21 lulus** (`DEPLOY\integration_test\laporan_integrasi.md`) | `python run_integration.py --cafe-video … --face-video …` |
 | Akurasi wajah (dataset 20 orang, 200 foto) | verifikasi 1:1 dan identifikasi 1:N terbuka | **EER 1,89 %**; τ = 0,40: Rank-1 **100 %**, FAR **0,00 %**, FRR **1,14 %** (setelah voting 0,07 %); aturan perangkat 4.000 sesi: salah orang **0 %**, orang asing diterima **0 %** | `cafe_facerec`: `python scripts/evaluate.py` |
 | Jarak (wajah diperkecil + noise/MJPEG/landmark) | skor pemilik vs orang lain per lebar wajah | 48 px (±1,6 m): skor pemilik ≥ 0,58 pada 95 % percobaan; skor orang lain maks 0,38 di semua ukuran | lihat PARAMETERS.md |
