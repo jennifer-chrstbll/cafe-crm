@@ -109,4 +109,8 @@ Diubah setelah uji rumah (nama hilang saat pindah kamera, duduk, setengah badan)
 | Rupa belum pernah bersih | ambang naik ke 0,72 | Pelanggan yang selalu tertutup orang lain tidak dipulihkan dari rupa yang tercemar | ditemukan di rekaman toko |
 | COLOR_CUE_WEIGHT | 0,7 | Warna pakaian (histogram HSV badan atas/bawah) ditambahkan ke skor OSNet saat memutuskan "siapa yang mana" setelah orang saling menutupi, hanya di kamera yang sama. Diukur di uji rumah 23-11-2026: orang sama 0,61–0,95; merah vs kuning 0,44–0,78; vs baju putih 0,05–0,35 | Swain & Ballard 1991; Farenzena dkk. 2010 (SDALF) |
 | COLOR_KEEP_MIN | 0,50 | Warna rata-rata di bawah ini: nama tidak dinyatakan beres (tetap "Nama?") | — |
+| FACE_OVERRIDE | 1 (aktif) | Wajah yang terbaca 2× di titik kasir mengoreksi nama hasil pelacakan pada tubuh di kasir; nama lama dilepas dan galerinya dikembalikan ke rupa saat dikenali | Bukti langsung (wajah) > bukti tidak langsung (pelacakan melewati singgungan) |
+| FACE_OVERRIDE_QUIET_SEC | 6 dtk | Koreksi ditahan bila wajah pemilik nama sendiri terbaca < 6 dtk lalu (ia memang di kasir) | UNO Q mengirim wajah ±tiap 2,5 dtk |
+| FACE_OVERRIDE_MANUAL_SEC | 60 dtk | Nama yang baru dipasang kasir dengan tangan tidak dikoreksi otomatis selama ini | Keputusan kasir didahulukan |
+| ID melompat (tanpa parameter baru) | unggul ≥ CONFLICT_MARGIN/2 | Tubuh bernama yang pasangan singgungnya lenyap di tengah singgungan dan rupanya lebih mirip pasangan itu: nama dilepas | Uji lab 23-11: ID Jason pindah ke Alvan |
 | Tunggu pasangan | — | Tubuh bernama yang tadi tertutup tubuh lain baru dinyatakan beres setelah tubuh lain itu juga bisa dinilai (atau sudah pergi) | bug ditemukan di uji rumah 23-11-2026 |

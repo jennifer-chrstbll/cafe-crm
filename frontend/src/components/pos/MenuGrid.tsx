@@ -12,7 +12,12 @@ const CATS = ["ALL", "COFFEE", "NON_COFFEE", "FOOD", "DESSERT"] as const;
 /**
  * Menu tiles: large (>= 96 px) because tapping them is the most frequent action in a
  * shift (Fitts's law). Quantity already in the cart shows on the tile (visibility).
+ *
+ * The number of columns follows the width of the menu panel, not of the screen: the panel sits
+ * between the customer card and the cart, so on a laptop it is only ~450 px wide even on a
+ * 1920 px screen. Every tile keeps room for the photo AND the full name and price.
  */
+const GRID = "grid-cols-[repeat(auto-fill,minmax(12.5rem,1fr))]";
 export function MenuGrid({ menus, loading, error, onRetry, qtyById, onAdd }: {
   menus: Menu[] | null; loading: boolean; error: string | null; onRetry: () => void;
   qtyById: Map<string, number>; onAdd: (m: Menu) => void;
@@ -61,13 +66,13 @@ export function MenuGrid({ menus, loading, error, onRetry, qtyById, onAdd }: {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
-        {loading ? <CardGridSkeleton n={12} className="sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" />
+        {loading ? <CardGridSkeleton n={12} className="!grid-cols-[repeat(auto-fill,minmax(12.5rem,1fr))]" />
           : error ? <ErrorState message={error} onRetry={onRetry} />
           : visible.length === 0 ? (
             <EmptyState icon={Search} title={q ? `Tidak ada menu "${q}"` : "Belum ada menu"}
               text={q ? "Coba kata lain atau pilih kategori Semua." : "Pemilik dapat menambah menu di halaman Menu."} />
           ) : (
-            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <ul className={cn("grid gap-2", GRID)}>
               {visible.map((m) => {
                 const qty = qtyById.get(m.menu_id) ?? 0;
                 return (
